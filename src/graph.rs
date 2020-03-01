@@ -3,16 +3,16 @@ use std::{collections::HashMap, convert::TryFrom, fmt, fs::ReadDir, io::Error as
 
 #[derive(Debug, Clone)]
 pub struct PatchGraph {
-    graph: petgraph::graphmap::UnGraphMap<Version, FileSize>,
+    pub(crate) graph: petgraph::graphmap::UnGraphMap<Version, FileSize>,
     build_sizes: HashMap<Version, FileSize>,
 }
 
 impl PatchGraph {
-    pub fn from_file_list(list: Vec<(String, usize)>) -> Result<Self> {
+    pub fn from_file_list(list: impl IntoIterator<Item = (String, u64)>) -> Result<Self> {
         let mut graph = petgraph::graphmap::GraphMap::new();
         let mut build_sizes = HashMap::new();
 
-        let (patches, builds): (Vec<(String, usize)>, Vec<(String, usize)>) = list
+        let (patches, builds): (Vec<_>, Vec<_>) = list
             .into_iter()
             .partition(|(filename, _size)| filename.ends_with(".patch"));
 
@@ -91,7 +91,7 @@ pub struct Version {
 }
 
 impl Version {
-    fn as_str(&self) -> &str {
+    pub fn as_str(&self) -> &str {
         // Data is a valid subset of an UTF-8 string by construction
         unsafe { std::str::from_utf8_unchecked(&self.data[..self.len as usize]) }
     }
@@ -130,7 +130,7 @@ impl<'a> TryFrom<&'a str> for Version {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, PartialOrd, Ord)]
-struct FileSize(usize);
+pub(crate) struct FileSize(u64);
 
 impl std::ops::Add<FileSize> for FileSize {
     type Output = FileSize;
@@ -145,7 +145,6 @@ struct Patch {
     filename: String,
     size: FileSize,
 }
-
 
 #[cfg(test)]
 mod tests {
