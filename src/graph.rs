@@ -1,5 +1,6 @@
+use crate::Version;
 use anyhow::{Context, Result};
-use std::{collections::HashMap, convert::TryFrom, fmt, fs::ReadDir, io::Error as IoError};
+use std::{collections::HashMap, convert::TryFrom, fs::ReadDir, io::Error as IoError};
 
 #[derive(Debug, Clone)]
 pub struct PatchGraph {
@@ -81,51 +82,6 @@ impl TryFrom<ReadDir> for PatchGraph {
 
     fn try_from(_x: ReadDir) -> Result<Self, IoError> {
         todo!()
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct Version {
-    len: u8,
-    data: [u8; 23],
-}
-
-impl Version {
-    pub fn as_str(&self) -> &str {
-        // Data is a valid subset of an UTF-8 string by construction
-        unsafe { std::str::from_utf8_unchecked(&self.data[..self.len as usize]) }
-    }
-}
-
-impl fmt::Debug for Version {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.debug_tuple("Version")
-            .field(&String::from_utf8_lossy(&self.data[..self.len as usize]))
-            .finish()
-    }
-}
-
-impl<'a> TryFrom<&'a str> for Version {
-    type Error = anyhow::Error;
-
-    fn try_from(s: &str) -> Result<Self> {
-        let mut v = [0u8; 23];
-        let len = std::cmp::min(s.len(), 23);
-
-        anyhow::ensure!(
-            s.is_char_boundary(len),
-            "version string too long and cut-off point not at char boundary"
-        );
-
-        s.as_bytes()[..len]
-            .iter()
-            .enumerate()
-            .for_each(|(i, c)| v[i] = *c);
-
-        Ok(Version {
-            len: len as u8,
-            data: v,
-        })
     }
 }
 
