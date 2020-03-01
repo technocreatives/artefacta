@@ -1,7 +1,26 @@
 # Artefacta - Manage artefact downloads and patched upgrades
 
+> artefacta, Latin, "the artefacts"
+
 ## Concept
 
 - Builds are versioned by the commit hash they were built from.
 - Builds are uploaded are `<version>.tar.zst` files
 - Patches between builds are calculated using _bidiff_ and uploaded as `<from-version>-<to-version>.patch.zst`
+- Builds and patches are mirrored locally
+- Locally, a `current` symlink points at the currently used version (which might or might not be latest one)
+
+## Planned usage
+
+Eventually, `artefacta` will be a fast and self-contained CLI tool
+that allows getting new revisions of archives as fast as possible.
+
+Calling it like this:
+
+[source,shell]  
+----
+artefacta /srv/artefacts/package-name/ s3://bucket/package-name install 09c851
+----
+
+will try and install the version identified by the (sub-)hash `09c851`.
+If it succeeds, it will be available as `/srv/artefacts/package-name/lastest`.
