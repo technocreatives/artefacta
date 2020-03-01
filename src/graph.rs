@@ -1,45 +1,57 @@
-use crate::Version;
+use crate::{paths, Version};
 use anyhow::{Context, Result};
-use std::{collections::HashMap, convert::TryFrom, fs::ReadDir, io::Error as IoError};
+use std::{
+    collections::HashMap, convert::TryFrom, fmt, fs::ReadDir, io::Error as IoError, path::PathBuf,
+};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct PatchGraph {
     pub(crate) graph: petgraph::graphmap::UnGraphMap<Version, FileSize>,
     build_sizes: HashMap<Version, FileSize>,
 }
 
 impl PatchGraph {
-    pub fn from_file_list(list: impl IntoIterator<Item = (String, u64)>) -> Result<Self> {
-        let mut graph = petgraph::graphmap::GraphMap::new();
-        let mut build_sizes = HashMap::new();
+    pub fn from_file_list(list: impl IntoIterator<Item = (PathBuf, u64)>) -> Result<Self> {
+        let mut res = PatchGraph::default();
 
         let (patches, builds): (Vec<_>, Vec<_>) = list
             .into_iter()
-            .partition(|(filename, _size)| filename.ends_with(".patch"));
+            .map(|(path, size)| Ok((paths::path_as_string(path)?, size)))
+            .collect::<Result<Vec<_>>>()?
+            .into_iter()
+            .partition(|(path, _size)| path.contains(".patch"));
 
-        for (filename, size) in builds {
-            let build = Version::try_from(filename.as_str())?;
-            graph.add_node(build.clone());
-            build_sizes.insert(build, FileSize(size));
+        for (path, size) in dbg!(builds) {
+            let file_name = paths::file_name(path)?;
+            res.add_build(&file_name, size)
+                .with_context(|| format!("add build `{}`", file_name))?;
         }
 
-        for (filename, size) in patches {
-            let name = filename.trim_end_matches(".patch");
-            let parts: Vec<&str> = name.splitn(2, '-').collect();
-            anyhow::ensure!(
-                parts.len() == 2,
-                "patch file name pattern is not `<hash>-<hash>`: `{}`",
-                name,
-            );
-
-            graph.add_edge(
-                Version::try_from(parts[0])?,
-                Version::try_from(parts[1])?,
-                FileSize(size),
-            );
+        for (path, size) in dbg!(patches) {
+            let file_name = paths::file_name(path)?;
+            res.add_patch(&file_name, size)
+                .with_context(|| format!("add patch `{}`", file_name))?;
         }
 
-        Ok(PatchGraph { graph, build_sizes })
+        Ok(res)
+    }
+
+    pub(crate) fn add_build(&mut self, name: &str, size: u64) -> Result<()> {
+        let build = paths::build_version_from_path(name).context("Build version from path")?;
+
+        self.graph.add_node(build.clone());
+        self.build_sizes.insert(build, FileSize(size));
+
+        Ok(())
+    }
+
+    pub(crate) fn add_patch(&mut self, name: &str, size: u64) -> Result<()> {
+        let (from, to) =
+            paths::patch_versions_from_path(name).context("Patch versions from path")?;
+
+        self.graph.add_edge(from, to, FileSize(size));
+
+        Ok(())
     }
 
     fn patches_needed(&self, from: Version, to: Version) -> Option<(FileSize, Vec<String>)> {
@@ -52,7 +64,13 @@ impl PatchGraph {
         )?;
         let path = steps
             .windows(2)
-            .map(|x| format!("{}-{}.patch", x[1].as_str(), x[0].as_str()))
+            .map(|x| {
+                PatchName {
+                    from: x[1],
+                    to: x[0],
+                }
+                .to_string()
+            })
             .collect();
 
         Some((cost, path))
@@ -86,7 +104,7 @@ impl TryFrom<ReadDir> for PatchGraph {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, PartialOrd, Ord)]
-pub(crate) struct FileSize(u64);
+pub(crate) struct FileSize(pub(crate) u64);
 
 impl std::ops::Add<FileSize> for FileSize {
     type Output = FileSize;
@@ -97,25 +115,31 @@ impl std::ops::Add<FileSize> for FileSize {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct Patch {
-    filename: String,
-    size: FileSize,
+pub(crate) struct PatchName {
+    pub(crate) from: Version,
+    pub(crate) to: Version,
+}
+
+impl fmt::Display for PatchName {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}-{}.patch", self.from.as_str(), self.to.as_str())
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use anyhow::Result;
-    use std::convert::TryFrom;
+    use std::{convert::TryFrom, path::PathBuf};
 
     #[test]
     fn this_is_fine() -> Result<()> {
         let graph = PatchGraph::from_file_list(vec![
-            (String::from("1"), 42),
-            (String::from("1-2.patch"), 2),
-            (String::from("2-3.patch"), 30),
-            (String::from("2"), 64),
-            (String::from("3"), 72),
+            (PathBuf::from("1.tar.zst"), 42),
+            (PathBuf::from("1-2.patch.zst"), 2),
+            (PathBuf::from("2-3.patch.zst"), 30),
+            (PathBuf::from("2.tar.zst"), 64),
+            (PathBuf::from("3.tar.zst"), 72),
         ])?;
         let installed_version = Version::try_from("1")?;
         let target_version = Version::try_from("3")?;
@@ -133,11 +157,11 @@ mod tests {
     #[test]
     fn this_is_also_ok() -> Result<()> {
         let graph = PatchGraph::from_file_list(vec![
-            (String::from("1"), 42),
-            (String::from("1-2.patch"), 2),
-            (String::from("2-3.patch"), 70),
-            (String::from("2"), 64),
-            (String::from("3"), 72),
+            (PathBuf::from("1.tar.zst"), 42),
+            (PathBuf::from("1-2.patch.zst"), 2),
+            (PathBuf::from("2-3.patch.zst"), 70),
+            (PathBuf::from("2.tar.zst"), 64),
+            (PathBuf::from("3.tar.zst"), 72),
         ])?;
         let installed_version = Version::try_from("1")?;
         let target_version = Version::try_from("3")?;

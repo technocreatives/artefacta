@@ -1,29 +1,32 @@
 use anyhow::{Context, Result};
 use rand::prelude::*;
-use std::convert::TryInto;
-use std::{
-    fs,
-    io::{Cursor, Read},
-    path::Path,
-};
+use std::{fs, io::Cursor};
 use tempfile::{tempdir, TempDir};
-use zstd::stream::write::Encoder as ZstdEncoder;
 
-use artefacta::{apply_patch, ArtefactIndex};
+use artefacta::ArtefactIndex;
 
 #[test]
-#[ignore]
+// #[ignore]
 fn generate_patches() -> Result<()> {
     let dir = test_dir(&["1.tar.zst", "2.tar.zst", "1-2.patch.zst"])?;
+    let remote_dir = test_dir(&["3.tar.zst"])?;
 
-    let mut index = ArtefactIndex::from_dir(&dir)?;
-    index.add_build("3.tar.zst")?;
-    index.generate_missing_patches()?;
+    let mut index = dbg!(ArtefactIndex::from_dir(&dir)?);
+    index.add_build(&remote_dir.path().join("3.tar.zst"))?;
 
     assert!(
-        index.get_patch("2".try_into()?, "3".try_into()?).is_ok(),
-        "didn't create patch"
+        index.get_build("3".parse()?).is_ok(),
+        "didn't add build to index {:?}",
+        index
     );
+
+    index
+        .calculate_patch("2".parse()?, "3".parse()?)
+        .context("calc patches")?;
+
+    dbg!(&index);
+
+    index.get_patch("2".parse()?, "3".parse()?).unwrap();
 
     Ok(())
 }

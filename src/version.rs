@@ -19,9 +19,7 @@ impl Version {
 
 impl fmt::Debug for Version {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
-        fmt.debug_tuple("Version")
-            .field(&self.as_str())
-            .finish()
+        fmt.debug_tuple("Version").field(&self.as_str()).finish()
     }
 }
 
@@ -71,11 +69,10 @@ impl<'a> TryFrom<&'a String> for Version {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
-    use proptest::prelude::*;
     use super::*;
+    use proptest::prelude::*;
 
     proptest! {
         #[test]

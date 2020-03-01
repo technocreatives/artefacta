@@ -1,8 +1,10 @@
 mod graph;
-pub use graph::{PatchGraph, UpgradePath};
+pub use graph::*;
+
+pub(crate) mod paths;
 
 mod version;
-pub use version::Version;
+pub use version::*;
 
 mod apply_patch;
 pub use apply_patch::apply_patch;
