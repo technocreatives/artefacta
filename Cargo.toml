@@ -19,6 +19,7 @@ color-backtrace = "0.3.0"
 pretty_env_logger = "0.4.0"
 
 url = "2.1.1"
+tar = "0.4.26"
 # rusoto_s3 = { version = "0.43.0-beta.1", features = ["rustls"], default-features = false }
 
 [dev-dependencies]
