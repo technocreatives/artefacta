@@ -24,9 +24,7 @@ pub fn apply_patch(archive: &Path, patch: &Path) -> Result<impl Read> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rand::prelude::*;
-    use std::fs;
-    use tempfile::tempdir;
+    use crate::test_helpers::*;
     use zstd::stream::write::Encoder as ZstdEncoder;
 
     #[test]
@@ -52,15 +50,5 @@ mod tests {
         assert_eq!(zstd::stream::decode_all(fs::File::open(&file2)?)?, buffer);
 
         Ok(())
-    }
-
-    fn random_file(path: &Path) -> Result<Vec<u8>> {
-        let mut rng = rand::thread_rng();
-        let mut raw_content = vec![0u8; 1024];
-        rng.try_fill(&mut raw_content[..])?;
-        let content = zstd::stream::encode_all(Cursor::new(&raw_content[..]), 3)?;
-
-        fs::write(path, content).context("write file")?;
-        Ok(raw_content)
     }
 }
