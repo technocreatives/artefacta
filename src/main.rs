@@ -27,7 +27,8 @@ fn main() -> Result<()> {
 
     let args = Cli::from_args();
     log::debug!("{:?}", args);
-    let index = ArtefactIndex::from_dir(&args.local_store).context("open artifact store")?;
+    let index = ArtefactIndex::new(&args.local_store, args.remote_store.clone())
+        .context("open artifact store")?;
     match args.cmd {
         Command::Install { version } => todo!(),
     }

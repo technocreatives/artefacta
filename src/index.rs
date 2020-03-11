@@ -5,19 +5,21 @@ use std::{
     io::{BufReader, Read},
     path::{Path, PathBuf},
 };
+use url::Url;
 use zstd::stream::write::Encoder as ZstdEncoder;
 
 #[derive(Debug)]
 pub struct Index {
-    root: PathBuf,
+    local_root: PathBuf,
+    remote: Url,
     patch_graph: PatchGraph,
 }
 
 impl Index {
     /// Build index from directory content
-    pub fn from_dir(p: impl AsRef<Path>) -> Result<Self> {
-        let path = p.as_ref();
-        let dir = read_dir(path)
+    pub fn new(local: impl AsRef<Path>, remote: Url) -> Result<Self> {
+        let path = local.as_ref();
+        let local_files = read_dir(path)
             .with_context(|| format!("could not read directory `{}`", path.display()))?
             .map(|entry| {
                 let entry = entry.context("read file entry")?;
@@ -31,12 +33,13 @@ impl Index {
             .collect::<Result<Vec<_>>>()
             .context("parse directory content")?;
 
-        let patch_graph = PatchGraph::from_file_list(dir)
+        let patch_graph = PatchGraph::from_file_list(local_files)
             .with_context(|| format!("build patch graph from `{}`", path.display()))?;
 
         Ok(Index {
             patch_graph,
-            root: path.to_owned(),
+            local_root: path.to_owned(),
+            remote,
         })
     }
 
@@ -68,7 +71,7 @@ impl Index {
         let new_build = read_file(new_build).context("read new build")?;
 
         let path_name = PatchName { from, to };
-        let patch_path = self.root.join(path_name.to_string() + ".zst");
+        let patch_path = self.local_root.join(path_name.to_string() + ".zst");
         log::info!("write patch {:?} to `{:?}`", path_name, patch_path);
 
         let mut patch = ZstdEncoder::new(File::create(&patch_path)?, 3)?;
@@ -99,7 +102,7 @@ impl Index {
             (from, to)
         );
         let path = self
-            .root
+            .local_root
             .join(format!("{}-{}", from.as_str(), to.as_str()))
             .with_extension("patch.zst");
         let file = File::open(&path).with_context(|| {
@@ -118,7 +121,10 @@ impl Index {
             "build `{:?}` unknown",
             version
         );
-        let path = self.root.join(version.as_str()).with_extension("tar.zst");
+        let path = self
+            .local_root
+            .join(version.as_str())
+            .with_extension("tar.zst");
         let file = File::open(&path).with_context(|| {
             format!(
                 "could not open file `{:?}` for build `{:?}`",
@@ -137,13 +143,15 @@ impl Index {
             .with_context(|| format!("canonicalize {}", path.display()))?;
 
         anyhow::ensure!(
-            !path.starts_with(&self.root),
+            !path.starts_with(&self.local_root),
             "asked to add build from index directory"
         );
 
         let file_name = paths::file_name(&path)?;
         let version: Version = file_name.parse()?;
-        let new_path = self.root.join(format!("{}.tar.zst", version.as_str()));
+        let new_path = self
+            .local_root
+            .join(format!("{}.tar.zst", version.as_str()));
         fs::copy(&path, &new_path)
             .with_context(|| format!("copy `{}` to `{}`", path.display(), new_path.display()))?;
 
@@ -159,6 +167,28 @@ impl Index {
         self.patch_graph
             .add_build(&file_name, size)
             .with_context(|| format!("add build `{}`", path.display()))?;
+        Ok(())
+    }
+
+    // Fetch current state from S3 and upload all missing files (i.e. new builds
+    // and patches)
+    pub fn push(&self) -> Result<()> {
+        todo!()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_helpers::*;
+
+    #[test]
+    fn construct_index() -> Result<()> {
+        let dir = tempdir()?;
+
+        let this = Index::new(dir.path(), "s3://my-bucket/".parse()?)?;
+        assert_eq!(this.remote.scheme(), "s3");
+
         Ok(())
     }
 }
