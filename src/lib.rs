@@ -13,6 +13,8 @@ mod index;
 pub use index::Index as ArtefactIndex;
 
 mod packaging;
+mod storage;
+pub use storage::Storage;
 
 #[cfg(test)]
 pub(crate) mod test_helpers;

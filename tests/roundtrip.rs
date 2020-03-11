@@ -2,9 +2,8 @@ use anyhow::{Context, Result};
 use rand::prelude::*;
 use std::{fs, io::Cursor};
 use tempfile::{tempdir, TempDir};
-use url::Url;
 
-use artefacta::ArtefactIndex;
+use artefacta::{ArtefactIndex, Storage};
 
 #[test]
 // #[ignore]
@@ -14,7 +13,7 @@ fn generate_patches() -> Result<()> {
 
     let mut index = dbg!(ArtefactIndex::new(
         &dir,
-        Url::from_directory_path(remote_dir.path()).expect("directory path as url")
+        Storage::Filesystem(remote_dir.path().into()),
     )?);
     index.add_build(&remote_dir.path().join("3.tar.zst"))?;
 

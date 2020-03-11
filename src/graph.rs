@@ -1,8 +1,6 @@
-use crate::{paths, Version};
+use crate::{paths, storage::Entry, Version};
 use anyhow::{Context, Result};
-use std::{
-    collections::HashMap, convert::TryFrom, fmt, fs::ReadDir, io::Error as IoError, path::PathBuf,
-};
+use std::{collections::HashMap, convert::TryFrom, fmt, fs::ReadDir, io::Error as IoError};
 
 #[derive(Debug, Clone, Default)]
 pub struct PatchGraph {
@@ -11,25 +9,22 @@ pub struct PatchGraph {
 }
 
 impl PatchGraph {
-    pub fn from_file_list(list: impl IntoIterator<Item = (PathBuf, u64)>) -> Result<Self> {
+    pub fn from_file_list(list: &[Entry]) -> Result<Self> {
         let mut res = PatchGraph::default();
 
         let (patches, builds): (Vec<_>, Vec<_>) = list
             .into_iter()
-            .map(|(path, size)| Ok((paths::path_as_string(path)?, size)))
-            .collect::<Result<Vec<_>>>()?
-            .into_iter()
-            .partition(|(path, _size)| path.contains(".patch"));
+            .partition(|entry| entry.path.contains(".patch"));
 
-        for (path, size) in dbg!(builds) {
+        for Entry { path, size } in dbg!(builds) {
             let file_name = paths::file_name(path)?;
-            res.add_build(&file_name, size)
+            res.add_build(&file_name, *size)
                 .with_context(|| format!("add build `{}`", file_name))?;
         }
 
-        for (path, size) in dbg!(patches) {
+        for Entry { path, size } in dbg!(patches) {
             let file_name = paths::file_name(path)?;
-            res.add_patch(&file_name, size)
+            res.add_patch(&file_name, *size)
                 .with_context(|| format!("add patch `{}`", file_name))?;
         }
 
@@ -130,16 +125,31 @@ impl fmt::Display for PatchName {
 mod tests {
     use super::*;
     use anyhow::Result;
-    use std::{convert::TryFrom, path::PathBuf};
+    use std::convert::TryFrom;
 
     #[test]
     fn this_is_fine() -> Result<()> {
-        let graph = PatchGraph::from_file_list(vec![
-            (PathBuf::from("1.tar.zst"), 42),
-            (PathBuf::from("1-2.patch.zst"), 2),
-            (PathBuf::from("2-3.patch.zst"), 30),
-            (PathBuf::from("2.tar.zst"), 64),
-            (PathBuf::from("3.tar.zst"), 72),
+        let graph = PatchGraph::from_file_list(&[
+            Entry {
+                path: "1.tar.zst".into(),
+                size: 42,
+            },
+            Entry {
+                path: "1-2.patch.zst".into(),
+                size: 2,
+            },
+            Entry {
+                path: "2-3.patch.zst".into(),
+                size: 20,
+            },
+            Entry {
+                path: "2.tar.zst".into(),
+                size: 64,
+            },
+            Entry {
+                path: "3.tar.zst".into(),
+                size: 72,
+            },
         ])?;
         let installed_version = Version::try_from("1")?;
         let target_version = Version::try_from("3")?;
@@ -156,12 +166,27 @@ mod tests {
 
     #[test]
     fn this_is_also_ok() -> Result<()> {
-        let graph = PatchGraph::from_file_list(vec![
-            (PathBuf::from("1.tar.zst"), 42),
-            (PathBuf::from("1-2.patch.zst"), 2),
-            (PathBuf::from("2-3.patch.zst"), 70),
-            (PathBuf::from("2.tar.zst"), 64),
-            (PathBuf::from("3.tar.zst"), 72),
+        let graph = PatchGraph::from_file_list(&[
+            Entry {
+                path: "1.tar.zst".into(),
+                size: 42,
+            },
+            Entry {
+                path: "1-2.patch.zst".into(),
+                size: 2,
+            },
+            Entry {
+                path: "2-3.patch.zst".into(),
+                size: 70,
+            }, // <- large now!
+            Entry {
+                path: "2.tar.zst".into(),
+                size: 64,
+            },
+            Entry {
+                path: "3.tar.zst".into(),
+                size: 72,
+            },
         ])?;
         let installed_version = Version::try_from("1")?;
         let target_version = Version::try_from("3")?;

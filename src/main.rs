@@ -1,14 +1,13 @@
 use anyhow::{Context, Result};
 use std::path::PathBuf;
 use structopt::StructOpt;
-use url::Url;
 
-use artefacta::{ArtefactIndex, Version};
+use artefacta::{ArtefactIndex, Storage, Version};
 
 #[derive(Debug, StructOpt)]
 struct Cli {
     local_store: PathBuf,
-    remote_store: Url,
+    remote_store: Storage,
     #[structopt(subcommand)]
     cmd: Command,
 }
@@ -27,10 +26,10 @@ fn main() -> Result<()> {
 
     let args = Cli::from_args();
     log::debug!("{:?}", args);
-    let index = ArtefactIndex::new(&args.local_store, args.remote_store.clone())
+    let _index = ArtefactIndex::new(&args.local_store, args.remote_store.clone())
         .context("open artifact store")?;
     match args.cmd {
-        Command::Install { version } => todo!(),
+        Command::Install { .. } => todo!(),
     }
 
     Ok(())

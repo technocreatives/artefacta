@@ -1,45 +1,31 @@
-use crate::{graph::FileSize, paths, PatchGraph, PatchName, Version};
+use crate::{graph::FileSize, paths, storage::Storage, PatchGraph, PatchName, Version};
 use anyhow::{Context, Result};
 use std::{
-    fs::{self, read_dir, File},
+    fs::{self, File},
     io::{BufReader, Read},
-    path::{Path, PathBuf},
+    path::Path,
 };
-use url::Url;
+
 use zstd::stream::write::Encoder as ZstdEncoder;
 
 #[derive(Debug)]
 pub struct Index {
-    local_root: PathBuf,
-    remote: Url,
+    local: Storage,
+    remote: Storage,
     patch_graph: PatchGraph,
 }
 
 impl Index {
     /// Build index from directory content
-    pub fn new(local: impl AsRef<Path>, remote: Url) -> Result<Self> {
-        let path = local.as_ref();
-        let local_files = read_dir(path)
-            .with_context(|| format!("could not read directory `{}`", path.display()))?
-            .map(|entry| {
-                let entry = entry.context("read file entry")?;
-                let path = entry.path();
-                let size = entry
-                    .metadata()
-                    .with_context(|| format!("read metadata of `{}`", path.display()))?
-                    .len();
-                Ok((path, size))
-            })
-            .collect::<Result<Vec<_>>>()
-            .context("parse directory content")?;
-
-        let patch_graph = PatchGraph::from_file_list(local_files)
-            .with_context(|| format!("build patch graph from `{}`", path.display()))?;
+    pub fn new(local: impl AsRef<Path>, remote: Storage) -> Result<Self> {
+        let local = Storage::Filesystem(local.as_ref().into());
+        let patch_graph = PatchGraph::from_file_list(&local.list_files().context("list files")?)
+            .with_context(|| format!("build patch graph from `{:?}`", local))?;
 
         Ok(Index {
-            patch_graph,
-            local_root: path.to_owned(),
+            local,
             remote,
+            patch_graph,
         })
     }
 
@@ -65,13 +51,19 @@ impl Index {
             return Ok(());
         }
 
+        let local = if let Storage::Filesystem(p) = &self.local {
+            p
+        } else {
+            anyhow::bail!("calculate patch can only write to local storage right now");
+        };
+
         let old_build = self.get_build(from).context("get old build")?;
         let old_build = read_file(old_build).context("read old build")?;
         let new_build = self.get_build(to).context("get new build")?;
         let new_build = read_file(new_build).context("read new build")?;
 
         let path_name = PatchName { from, to };
-        let patch_path = self.local_root.join(path_name.to_string() + ".zst");
+        let patch_path = local.join(path_name.to_string() + ".zst");
         log::info!("write patch {:?} to `{:?}`", path_name, patch_path);
 
         let mut patch = ZstdEncoder::new(File::create(&patch_path)?, 3)?;
@@ -101,8 +93,13 @@ impl Index {
             "patch `{:?}` unknown",
             (from, to)
         );
-        let path = self
-            .local_root
+        let local = if let Storage::Filesystem(p) = &self.local {
+            p
+        } else {
+            anyhow::bail!("calculate patch can only write to local storage right now");
+        };
+
+        let path = local
             .join(format!("{}-{}", from.as_str(), to.as_str()))
             .with_extension("patch.zst");
         let file = File::open(&path).with_context(|| {
@@ -121,10 +118,13 @@ impl Index {
             "build `{:?}` unknown",
             version
         );
-        let path = self
-            .local_root
-            .join(version.as_str())
-            .with_extension("tar.zst");
+        let local = if let Storage::Filesystem(p) = &self.local {
+            p
+        } else {
+            anyhow::bail!("get_build can read from local storage right now");
+        };
+
+        let path = local.join(version.as_str()).with_extension("tar.zst");
         let file = File::open(&path).with_context(|| {
             format!(
                 "could not open file `{:?}` for build `{:?}`",
@@ -142,16 +142,20 @@ impl Index {
             .canonicalize()
             .with_context(|| format!("canonicalize {}", path.display()))?;
 
+        let local = if let Storage::Filesystem(p) = &self.local {
+            p
+        } else {
+            anyhow::bail!("add_build can only write to local storage right now");
+        };
+
         anyhow::ensure!(
-            !path.starts_with(&self.local_root),
+            !path.starts_with(local),
             "asked to add build from index directory"
         );
 
         let file_name = paths::file_name(&path)?;
         let version: Version = file_name.parse()?;
-        let new_path = self
-            .local_root
-            .join(format!("{}.tar.zst", version.as_str()));
+        let new_path = local.join(format!("{}.tar.zst", version.as_str()));
         fs::copy(&path, &new_path)
             .with_context(|| format!("copy `{}` to `{}`", path.display(), new_path.display()))?;
 
@@ -186,8 +190,7 @@ mod tests {
     fn construct_index() -> Result<()> {
         let dir = tempdir()?;
 
-        let this = Index::new(dir.path(), "s3://my-bucket/".parse()?)?;
-        assert_eq!(this.remote.scheme(), "s3");
+        let _index = Index::new(dir.path(), "s3://my-bucket/".parse()?)?;
 
         Ok(())
     }
