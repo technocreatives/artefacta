@@ -31,6 +31,7 @@ fn main() -> Result<()> {
     pretty_env_logger::formatted_timed_builder()
         .filter(None, log::LevelFilter::Info)
         .filter(Some("artefacta"), log::LevelFilter::Debug)
+        .target(env_logger::Target::Stderr)
         .init();
 
     let args = Cli::from_args();

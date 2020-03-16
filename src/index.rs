@@ -1,8 +1,6 @@
 use crate::{
-    graph::FileSize,
     paths,
     storage::{Entry, Storage},
-    PatchGraph, PatchName, Version,
 };
 use anyhow::{Context, Result};
 use std::{
@@ -13,6 +11,15 @@ use std::{
 };
 
 use zstd::stream::write::Encoder as ZstdEncoder;
+
+mod build;
+pub use build::Build;
+mod patch;
+pub use patch::Patch;
+mod graph;
+pub use graph::{Location, PatchGraph};
+mod version;
+pub use version::Version;
 
 #[derive(Debug)]
 pub struct Index {
@@ -25,7 +32,9 @@ impl Index {
     /// Build index from directory content
     pub fn new(local: impl AsRef<Path>, remote: Storage) -> Result<Self> {
         let local = Storage::try_from(local.as_ref()).context("invalid local storage path")?;
-        let patch_graph = PatchGraph::from_file_list(&local.list_files().context("list files")?)
+        let mut patch_graph = PatchGraph::empty();
+        patch_graph
+            .update_from_file_list(&local.list_files().context("list files")?, Location::Local)
             .with_context(|| format!("build patch graph from `{:?}`", local))?;
 
         Ok(Index {
@@ -55,7 +64,7 @@ impl Index {
             Ok(bytes)
         }
 
-        if self.get_patch(from, to).is_ok() {
+        if self.get_patch(from.clone(), to.clone()).is_ok() {
             log::warn!(
                 "asked to calculate patch from `{:?}` to `{:?}` but it's already present",
                 from,
@@ -70,12 +79,12 @@ impl Index {
             anyhow::bail!("calculate patch can only write to local storage right now");
         };
 
-        let old_build = self.get_build(from).context("get old build")?;
+        let old_build = self.get_build(from.clone()).context("get old build")?;
         let old_build = read_file(old_build).context("read old build")?;
-        let new_build = self.get_build(to).context("get new build")?;
+        let new_build = self.get_build(to.clone()).context("get new build")?;
         let new_build = read_file(new_build).context("read new build")?;
 
-        let path_name = PatchName { from, to };
+        let path_name = Patch::new(from.clone(), to.clone());
         let patch_path = local.join(path_name.to_string() + ".zst");
         log::info!("write patch {:?} to `{:?}`", path_name, patch_path);
 
@@ -93,16 +102,21 @@ impl Index {
             })?
             .len();
 
+        let entry = Entry {
+            storage: self.local.clone(),
+            path: paths::path_as_string(patch_path)?,
+            size: patch_size,
+        };
+
         self.patch_graph
-            .graph
-            .add_edge(from, to, FileSize(patch_size));
+            .add_patch(&from, &to, entry, Location::Local)?;
 
         Ok(())
     }
 
     pub fn get_patch(&self, from: Version, to: Version) -> Result<File> {
         anyhow::ensure!(
-            self.patch_graph.graph.contains_edge(from, to),
+            self.patch_graph.has_patch(from.clone(), to.clone()),
             "patch `{:?}` unknown",
             (from, to)
         );
@@ -130,12 +144,12 @@ impl Index {
     /// TODO: Use `Index::find_upgrade_path` if build isn't available locally
     pub fn get_build(&mut self, version: Version) -> Result<Entry> {
         anyhow::ensure!(
-            self.patch_graph.graph.contains_node(version),
+            self.patch_graph.has_build(version.clone()),
             "build `{:?}` unknown",
             version
         );
 
-        let build_path = paths::build_path_from_version(version)?;
+        let build_path = paths::build_path_from_version(version.clone())?;
         match self.local.get_file(&build_path) {
             Ok(local_file) => return Ok(local_file),
             Err(e) => log::debug!("could not get local build for {}: {}", version.as_str(), e),
@@ -190,8 +204,15 @@ impl Index {
                 )
             })?
             .len();
+
+        let entry = Entry {
+            storage: self.local.clone(),
+            path: paths::path_as_string(new_path)?,
+            size,
+        };
+
         self.patch_graph
-            .add_build(&file_name, size)
+            .add_build(&version, entry, Location::Local)
             .with_context(|| format!("add build `{}`", path.display()))?;
         Ok(())
     }

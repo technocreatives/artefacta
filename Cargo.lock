@@ -51,11 +51,13 @@ dependencies = [
  "bidiff",
  "bipatch",
  "color-backtrace",
+ "env_logger",
  "log",
  "petgraph",
  "pretty_env_logger",
  "proptest",
  "rand 0.7.3",
+ "smol_str",
  "structopt",
  "tar",
  "tempfile",
@@ -1084,6 +1086,12 @@ name = "smallvec"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5c2fb2ec9bcd216a5b0d0ccf31ab17b5ed1d627960edff65bbe95d3ce221cefc"
+
+[[package]]
+name = "smol_str"
+version = "0.1.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "34836c9a295c62c2ce3514471117c5cb269891e8421b2aafdd910050576c4d8b"
 
 [[package]]
 name = "stable_deref_trait"

@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use std::{convert::TryFrom, path::Path};
 
-use crate::Version;
+use crate::index::Version;
 
 pub fn path_as_string(path: impl AsRef<Path>) -> Result<String> {
     let path = path.as_ref();

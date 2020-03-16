@@ -16,3 +16,11 @@ pub fn random_file(path: impl AsRef<Path>) -> Result<Vec<u8>> {
     fs::write(path, content).context("write file")?;
     Ok(raw_content)
 }
+
+pub fn logger() {
+    let _ = pretty_env_logger::formatted_builder()
+        .filter(None, log::LevelFilter::Debug)
+        .target(env_logger::Target::Stderr)
+        .is_test(true)
+        .try_init();
+}
