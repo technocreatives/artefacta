@@ -185,12 +185,36 @@ impl Index {
 mod tests {
     use super::*;
     use crate::test_helpers::*;
+    use std::convert::TryInto;
 
     #[test]
     fn construct_index() -> Result<()> {
         let dir = tempdir()?;
 
         let _index = Index::new(dir.path(), "s3://my-bucket/".parse()?)?;
+
+        let remote_dir = tempdir()?;
+        let _index = Index::new(dir.path(), remote_dir.path().try_into()?)?;
+
+        Ok(())
+    }
+
+    // TODO: Add same but with one the builds only available on remote
+    #[test]
+    fn create_patch() -> Result<()> {
+        let local_dir = tempdir()?;
+        let remote_dir = tempdir()?;
+
+        // Add some builds
+        let _build1 = random_file(local_dir.path().join("build1.tar.zst"))?;
+        let _build2 = random_file(local_dir.path().join("build2.tar.zst"))?;
+        let _build3 = random_file(local_dir.path().join("build3.tar.zst"))?;
+
+        let mut index = Index::new(local_dir.path(), remote_dir.path().try_into()?)?;
+
+        index.calculate_patch("build2".parse()?, "build3".parse()?)?;
+
+        index.get_patch("build2".parse()?, "build3".parse()?)?;
 
         Ok(())
     }
