@@ -73,11 +73,10 @@ impl Index {
             return Ok(());
         }
 
-        let local = if let Storage::Filesystem(p) = self.local.clone() {
-            p
-        } else {
-            anyhow::bail!("calculate patch can only write to local storage right now");
-        };
+        let local = self
+            .local
+            .local_path()
+            .context("calculate patch can only write to local storage right now")?;
 
         let old_build = self.get_build(from.clone()).context("get old build")?;
         let old_build = read_file(old_build).context("read old build")?;
@@ -120,11 +119,10 @@ impl Index {
             "patch `{:?}` unknown",
             (from, to)
         );
-        let local = if let Storage::Filesystem(p) = &self.local {
-            p
-        } else {
-            anyhow::bail!("calculate patch can only write to local storage right now");
-        };
+        let local = self
+            .local
+            .local_path()
+            .context("patch can only be read from local storage right now")?;
 
         let path = local
             .join(format!("{}-{}", from.as_str(), to.as_str()))
@@ -178,14 +176,13 @@ impl Index {
             .canonicalize()
             .with_context(|| format!("canonicalize {}", path.display()))?;
 
-        let local = if let Storage::Filesystem(p) = &self.local {
-            p
-        } else {
-            anyhow::bail!("add_build can only write to local storage right now");
-        };
+        let local = self
+            .local
+            .local_path()
+            .context("add_build can only write to local storage right now")?;
 
         anyhow::ensure!(
-            !path.starts_with(local),
+            !path.starts_with(&local),
             "asked to add build from index directory"
         );
 
@@ -267,10 +264,7 @@ mod tests {
         let dir = test_dir(&["1.tar.zst", "2.tar.zst", "1-2.patch.zst"])?;
         let remote_dir = test_dir(&["3.tar.zst"])?;
 
-        let mut index = dbg!(Index::new(
-            &dir,
-            Storage::Filesystem(remote_dir.path().into()),
-        )?);
+        let mut index = dbg!(Index::new(&dir, remote_dir.path().try_into()?,)?);
         index.add_build(&remote_dir.path().join("3.tar.zst"))?;
 
         assert!(

@@ -5,13 +5,30 @@ pub use std::{
     fs::read_dir,
     path::{Path, PathBuf},
     str::FromStr,
+    sync::Arc,
 };
 use url::Url;
 
+/// Storage abstraction
+///
+/// Cheap to clone, but immutable.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum Storage {
+pub struct Storage {
+    inner: Arc<InnerStorage>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+enum InnerStorage {
     Filesystem(PathBuf),
     S3(Url),
+}
+
+impl From<InnerStorage> for Storage {
+    fn from(inner: InnerStorage) -> Self {
+        Storage {
+            inner: Arc::new(inner),
+        }
+    }
 }
 
 impl<'p> TryFrom<&'p Path> for Storage {
@@ -19,7 +36,7 @@ impl<'p> TryFrom<&'p Path> for Storage {
 
     fn try_from(path: &Path) -> Result<Self> {
         anyhow::ensure!(path.exists(), "Path `{}` does not exist", path.display());
-        Ok(Storage::Filesystem(path.to_path_buf()))
+        Ok(InnerStorage::Filesystem(path.to_path_buf()).into())
     }
 }
 
@@ -29,12 +46,12 @@ impl FromStr for Storage {
     fn from_str(s: &str) -> Result<Self> {
         let path = PathBuf::from(s);
         if path.exists() {
-            return Ok(Storage::Filesystem(path));
+            return Ok(InnerStorage::Filesystem(path).into());
         }
 
         let url = Url::from_str(s).context("invalid URL")?;
         match url.scheme() {
-            "s3" => Ok(Storage::S3(url)),
+            "s3" => Ok(InnerStorage::S3(url).into()),
             scheme => anyhow::bail!("unsupported protoco `{}`", scheme),
         }
     }
@@ -49,14 +66,21 @@ pub struct Entry {
 
 impl Storage {
     pub fn is_local(&self) -> bool {
-        match self {
-            Storage::Filesystem(_) => true,
+        match *self.inner {
+            InnerStorage::Filesystem(_) => true,
             _ => false,
         }
     }
 
+    pub fn local_path(&self) -> Option<PathBuf> {
+        match *self.inner {
+            InnerStorage::Filesystem(ref p) => Some(p.clone()),
+            _ => None,
+        }
+    }
+
     pub fn list_files(&self) -> Result<Vec<Entry>> {
-        let path = if let Storage::Filesystem(p) = self {
+        let path = if let InnerStorage::Filesystem(ref p) = *self.inner {
             p
         } else {
             unimplemented!("list files only implemented for local fs")
@@ -82,8 +106,8 @@ impl Storage {
     }
 
     pub fn get_file(&self, path: &str) -> Result<Entry> {
-        match self {
-            Storage::Filesystem(root) => {
+        match self.inner.as_ref() {
+            InnerStorage::Filesystem(root) => {
                 let path = root.join(path);
                 anyhow::ensure!(path.exists(), "Path `{}` does not exist", path.display());
                 let size = path
@@ -97,7 +121,7 @@ impl Storage {
                     size,
                 })
             }
-            Storage::S3(..) => todo!("get_file not implemented for S3 yet"),
+            InnerStorage::S3(..) => todo!("get_file not implemented for S3 yet"),
         }
     }
 }
