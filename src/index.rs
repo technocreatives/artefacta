@@ -136,7 +136,7 @@ impl Index {
     }
 
     /// Add build to graph and copy it into index's root directory
-    pub fn add_build(&mut self, path: impl AsRef<Path>) -> Result<()> {
+    pub(crate) fn add_build(&mut self, path: impl AsRef<Path>) -> Result<()> {
         let path = path.as_ref();
         let path = path
             .canonicalize()
@@ -217,5 +217,48 @@ mod tests {
         index.get_patch("build2".parse()?, "build3".parse()?)?;
 
         Ok(())
+    }
+
+    #[test]
+    fn generate_patches() -> Result<()> {
+        let dir = test_dir(&["1.tar.zst", "2.tar.zst", "1-2.patch.zst"])?;
+        let remote_dir = test_dir(&["3.tar.zst"])?;
+
+        let mut index = dbg!(Index::new(
+            &dir,
+            Storage::Filesystem(remote_dir.path().into()),
+        )?);
+        index.add_build(&remote_dir.path().join("3.tar.zst"))?;
+
+        assert!(
+            index.get_build("3".parse()?).is_ok(),
+            "didn't add build to index {:?}",
+            index
+        );
+
+        index
+            .calculate_patch("2".parse()?, "3".parse()?)
+            .context("calc patches")?;
+
+        dbg!(&index);
+
+        index.get_patch("2".parse()?, "3".parse()?).unwrap();
+
+        Ok(())
+    }
+
+    fn test_dir(files: &[&str]) -> Result<tempfile::TempDir> {
+        let dir = tempdir()?;
+        let mut rng = rand::thread_rng();
+
+        for file in files {
+            let mut raw_content = vec![0u8; 1024];
+            rng.try_fill(&mut raw_content[..])?;
+            let content = zstd::stream::encode_all(Cursor::new(&raw_content[..]), 3)?;
+
+            fs::write(dir.path().join(file), content).context("write file")?;
+        }
+
+        Ok(dir)
     }
 }
