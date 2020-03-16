@@ -2,6 +2,15 @@ use crate::{paths, storage::Entry, Version};
 use anyhow::{Context, Result};
 use std::{collections::HashMap, convert::TryFrom, fmt, fs::ReadDir, io::Error as IoError};
 
+/// Graph of builds and upgrade paths using patches
+//
+// NOTE: Builds are represented by their version alone right now. This is
+// allows us to use the GraphMap type which has a simpler API. In the future we
+// might want to introduce another structure that maps between graph indices
+// and associated information, so we can also keep track of which files exists
+// locally and which only exist remotely. This will allow quick syncing of
+// files to remote, as well as optimizing for _download_ size instead of file
+// size when searching for the optimal upgrade path.
 #[derive(Debug, Clone, Default)]
 pub struct PatchGraph {
     pub(crate) graph: petgraph::graphmap::UnGraphMap<Version, FileSize>,
