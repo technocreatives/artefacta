@@ -1,6 +1,12 @@
-use crate::{graph::FileSize, paths, storage::Storage, PatchGraph, PatchName, Version};
+use crate::{
+    graph::FileSize,
+    paths,
+    storage::{Entry, Storage},
+    PatchGraph, PatchName, Version,
+};
 use anyhow::{Context, Result};
 use std::{
+    convert::TryFrom,
     fs::{self, File},
     io::{BufReader, Read},
     path::Path,
@@ -18,7 +24,7 @@ pub struct Index {
 impl Index {
     /// Build index from directory content
     pub fn new(local: impl AsRef<Path>, remote: Storage) -> Result<Self> {
-        let local = Storage::Filesystem(local.as_ref().into());
+        let local = Storage::try_from(local.as_ref()).context("invalid local storage path")?;
         let patch_graph = PatchGraph::from_file_list(&local.list_files().context("list files")?)
             .with_context(|| format!("build patch graph from `{:?}`", local))?;
 
@@ -35,7 +41,14 @@ impl Index {
     }
 
     pub fn calculate_patch(&mut self, from: Version, to: Version) -> Result<()> {
-        fn read_file(file: File) -> Result<Vec<u8>> {
+        fn read_file(entry: Entry) -> Result<Vec<u8>> {
+            anyhow::ensure!(
+                entry.storage.is_local(),
+                "only reading from local storage supported"
+            );
+            let path = entry.path;
+            let file =
+                File::open(&path).with_context(|| format!("could not open file {}", path))?;
             let mut file = BufReader::new(file);
             let mut bytes = Vec::with_capacity(2 << 20);
             file.read_to_end(&mut bytes).context("read file")?;
@@ -51,7 +64,7 @@ impl Index {
             return Ok(());
         }
 
-        let local = if let Storage::Filesystem(p) = &self.local {
+        let local = if let Storage::Filesystem(p) = self.local.clone() {
             p
         } else {
             anyhow::bail!("calculate patch can only write to local storage right now");
@@ -112,27 +125,36 @@ impl Index {
         Ok(file)
     }
 
-    pub fn get_build(&self, version: Version) -> Result<File> {
+    /// Get build (adds to local cache if not present)
+    ///
+    /// TODO: Use `Index::find_upgrade_path` if build isn't available locally
+    pub fn get_build(&mut self, version: Version) -> Result<Entry> {
         anyhow::ensure!(
             self.patch_graph.graph.contains_node(version),
             "build `{:?}` unknown",
             version
         );
-        let local = if let Storage::Filesystem(p) = &self.local {
-            p
-        } else {
-            anyhow::bail!("get_build can read from local storage right now");
-        };
 
-        let path = local.join(version.as_str()).with_extension("tar.zst");
-        let file = File::open(&path).with_context(|| {
+        let build_path = paths::build_path_from_version(version)?;
+        match self.local.get_file(&build_path) {
+            Ok(local_file) => return Ok(local_file),
+            Err(e) => log::debug!("could not get local build for {}: {}", version.as_str(), e),
+        }
+
+        let remote_entry = self.remote.get_file(&build_path).with_context(|| {
             format!(
-                "could not open file `{:?}` for build `{:?}`",
-                path.display(),
-                version
+                "can't find `{}` either locally or remotely",
+                version.as_str()
             )
         })?;
-        Ok(file)
+
+        self.add_build(&remote_entry.path)
+            .context("copy remote entry to local storage")?;
+        let newly_local_build = self
+            .local
+            .get_file(&build_path)
+            .context("fetch newly added local build")?;
+        Ok(newly_local_build)
     }
 
     /// Add build to graph and copy it into index's root directory
