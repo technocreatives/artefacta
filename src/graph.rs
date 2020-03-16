@@ -25,13 +25,13 @@ impl PatchGraph {
             .into_iter()
             .partition(|entry| entry.path.contains(".patch"));
 
-        for Entry { path, size } in dbg!(builds) {
+        for Entry { path, size, .. } in dbg!(builds) {
             let file_name = paths::file_name(path)?;
             res.add_build(&file_name, *size)
                 .with_context(|| format!("add build `{}`", file_name))?;
         }
 
-        for Entry { path, size } in dbg!(patches) {
+        for Entry { path, size, .. } in dbg!(patches) {
             let file_name = paths::file_name(path)?;
             res.add_patch(&file_name, *size)
                 .with_context(|| format!("add patch `{}`", file_name))?;
@@ -133,29 +133,35 @@ impl fmt::Display for PatchName {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Storage;
     use anyhow::Result;
-    use std::convert::TryFrom;
+    use std::{convert::TryFrom, path::Path};
 
     #[test]
     fn this_is_fine() -> Result<()> {
         let graph = PatchGraph::from_file_list(&[
             Entry {
+                storage: Storage::try_from(Path::new("/tmp"))?,
                 path: "1.tar.zst".into(),
                 size: 42,
             },
             Entry {
+                storage: Storage::try_from(Path::new("/tmp"))?,
                 path: "1-2.patch.zst".into(),
                 size: 2,
             },
             Entry {
+                storage: Storage::try_from(Path::new("/tmp"))?,
                 path: "2-3.patch.zst".into(),
                 size: 20,
             },
             Entry {
+                storage: Storage::try_from(Path::new("/tmp"))?,
                 path: "2.tar.zst".into(),
                 size: 64,
             },
             Entry {
+                storage: Storage::try_from(Path::new("/tmp"))?,
                 path: "3.tar.zst".into(),
                 size: 72,
             },
@@ -177,22 +183,27 @@ mod tests {
     fn this_is_also_ok() -> Result<()> {
         let graph = PatchGraph::from_file_list(&[
             Entry {
+                storage: Storage::try_from(Path::new("/tmp"))?,
                 path: "1.tar.zst".into(),
                 size: 42,
             },
             Entry {
+                storage: Storage::try_from(Path::new("/tmp"))?,
                 path: "1-2.patch.zst".into(),
                 size: 2,
             },
             Entry {
+                storage: Storage::try_from(Path::new("/tmp"))?,
                 path: "2-3.patch.zst".into(),
-                size: 70,
-            }, // <- large now!
+                size: 70, // <- large now!
+            },
             Entry {
+                storage: Storage::try_from(Path::new("/tmp"))?,
                 path: "2.tar.zst".into(),
                 size: 64,
             },
             Entry {
+                storage: Storage::try_from(Path::new("/tmp"))?,
                 path: "3.tar.zst".into(),
                 size: 72,
             },
