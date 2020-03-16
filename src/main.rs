@@ -6,7 +6,9 @@ use artefacta::{ArtefactIndex, Storage, Version};
 
 #[derive(Debug, StructOpt)]
 struct Cli {
+    #[structopt(long = "local", env = "ARTEFACTA_LOCAL_STORE")]
     local_store: PathBuf,
+    #[structopt(long = "remote", env = "ARTEFACTA_REMOTE_STORE")]
     remote_store: Storage,
     #[structopt(subcommand)]
     cmd: Command,
@@ -14,7 +16,14 @@ struct Cli {
 
 #[derive(Debug, StructOpt)]
 enum Command {
-    Install { version: Version },
+    Install {
+        version: Version,
+    },
+    Add {
+        version: Version,
+        #[structopt(long = "upload")]
+        upload: bool,
+    },
 }
 
 fn main() -> Result<()> {
@@ -26,10 +35,14 @@ fn main() -> Result<()> {
 
     let args = Cli::from_args();
     log::debug!("{:?}", args);
-    let _index = ArtefactIndex::new(&args.local_store, args.remote_store.clone())
+    let mut index = ArtefactIndex::new(&args.local_store, args.remote_store.clone())
         .context("open artifact store")?;
     match args.cmd {
-        Command::Install { .. } => todo!(),
+        Command::Install { version } => {
+            let build = index.get_build(version).context("get build")?;
+            dbg!(build);
+        }
+        Command::Add { .. } => todo!("add add"),
     }
 
     Ok(())
