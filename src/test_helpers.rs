@@ -7,7 +7,7 @@ pub use std::{
 };
 pub use tempfile::tempdir;
 
-pub fn random_file(path: &Path) -> Result<Vec<u8>> {
+pub fn random_file(path: impl AsRef<Path>) -> Result<Vec<u8>> {
     let mut rng = rand::thread_rng();
     let mut raw_content = vec![0u8; 1024];
     rng.try_fill(&mut raw_content[..])?;

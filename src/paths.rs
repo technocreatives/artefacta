@@ -24,6 +24,10 @@ pub fn file_name(path: impl AsRef<Path>) -> Result<String> {
     Ok(name.to_string())
 }
 
+pub fn build_path_from_version(v: Version) -> Result<String> {
+    Ok(format!("{}.tar.zst", v.as_str()))
+}
+
 pub fn build_version_from_path(path: impl AsRef<Path>) -> Result<Version> {
     let path = path.as_ref();
     let name = file_name(path).with_context(|| format!("get name of `{:?}`", path))?;
