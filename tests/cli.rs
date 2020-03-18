@@ -18,7 +18,7 @@ fn install_build_from_remote() {
         .args(&["install", "build2"])
         .assert()
         .success();
-    
+
     // Added "current" symlink
     let current = local.path().join("current");
     assert!(current.exists());
