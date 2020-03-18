@@ -227,18 +227,6 @@ mod tests {
     use crate::test_helpers::*;
     use std::convert::TryInto;
 
-    #[test]
-    fn construct_index() -> Result<()> {
-        let dir = tempdir()?;
-
-        let _index = Index::new(dir.path(), "s3://my-bucket/".parse()?)?;
-
-        let remote_dir = tempdir()?;
-        let _index = Index::new(dir.path(), remote_dir.path().try_into()?)?;
-
-        Ok(())
-    }
-
     // TODO: Add same but with one the builds only available on remote
     #[test]
     fn create_patch() -> Result<()> {

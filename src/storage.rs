@@ -12,6 +12,20 @@ use url::Url;
 /// Storage abstraction
 ///
 /// Cheap to clone, but immutable.
+///
+/// # Examples
+///
+/// ```rust
+/// use std::convert::TryInto;
+/// use artefacta::Storage;
+///
+/// let s3: Storage = "s3://my-bucket/".parse().unwrap();
+/// assert!(!s3.is_local());
+///
+/// let local_dir: Storage = std::env::current_dir().unwrap().try_into().unwrap();
+/// assert!(local_dir.is_local());
+/// assert!(local_dir.local_path().is_some());
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Storage {
     inner: Arc<InnerStorage>,
@@ -37,6 +51,14 @@ impl<'p> TryFrom<&'p Path> for Storage {
     fn try_from(path: &Path) -> Result<Self> {
         anyhow::ensure!(path.exists(), "Path `{}` does not exist", path.display());
         Ok(InnerStorage::Filesystem(path.to_path_buf()).into())
+    }
+}
+
+impl TryFrom<PathBuf> for Storage {
+    type Error = anyhow::Error;
+
+    fn try_from(path: PathBuf) -> Result<Self> {
+        Storage::try_from(path.as_path())
     }
 }
 
