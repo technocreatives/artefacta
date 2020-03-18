@@ -16,10 +16,10 @@ pub fn package(source_dir: &Path, target: impl Write) -> Result<()> {
         .sort_by(|a, b| a.path().cmp(b.path()))
         .into_iter();
 
-    for file in dbg!(entries) {
+    for file in entries {
         let file = file.context("read file")?;
         if file.file_type().is_dir() {
-            dbg!(file);
+            unimplemented!("can't archive directories because Pascal is lazy");
         } else if file.file_type().is_file() {
             add_file(&mut archive, &file, source_dir)
                 .with_context(|| format!("add `{}` to archive", file.path().display()))?;
@@ -37,7 +37,6 @@ fn add_file<W: Write>(
     root: &Path,
 ) -> Result<()> {
     let path = file.path().strip_prefix(root).context("root path prefix")?;
-    dbg!(&path);
     let mut header = tar::Header::new_gnu();
 
     header

@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 pub use anyhow::{Context, Result};
 pub use rand::prelude::*;
 pub use std::{

@@ -27,16 +27,18 @@ impl PatchGraph {
 
     pub fn update_from_file_list(&mut self, list: &[Entry], location: Location) -> Result<()> {
         let (patches, builds): (Vec<_>, Vec<_>) = list
-            .into_iter()
+            .iter()
             .partition(|entry| entry.path.contains(".patch"));
 
-        for entry in dbg!(builds) {
+        log::trace!("Builds: {:?}", builds);
+        for entry in builds {
             let version = paths::build_version_from_path(&entry.path)?;
             self.add_build(&version, entry.clone(), location)
                 .with_context(|| format!("add build `{}`", entry.path))?;
         }
 
-        for entry in dbg!(patches) {
+        log::trace!("Patches: {:?}", patches);
+        for entry in patches {
             let (from, to) =
                 paths::patch_versions_from_path(&entry.path).context("Patch versions from path")?;
             self.add_patch(&from, &to, entry.clone(), location)
@@ -152,6 +154,7 @@ impl PatchGraph {
         Ok((cost, path))
     }
 
+    #[allow(unused)]
     pub fn find_upgrade_path(&self, from: Version, to: Version) -> Result<UpgradePath> {
         let next_build = *self
             .builds
@@ -159,14 +162,14 @@ impl PatchGraph {
             .with_context(|| format!("unknown build size for `{:?}`", to))?;
         let build_size = self.graph[next_build].size();
 
-        let res = self.patches_needed(from.clone(), to.clone()).map_err(|e| {
+        let res = self.patches_needed(from, to.clone()).map_err(|e| {
             log::debug!("{}", e);
             e
         });
 
         match res {
             Ok((size, path)) if build_size > size => Ok(UpgradePath::ApplyPatches(path)),
-            _ => Ok(UpgradePath::InstallBuild(format!("{}", to.as_str()))),
+            _ => Ok(UpgradePath::InstallBuild(to.as_str().to_string())),
         }
     }
 }

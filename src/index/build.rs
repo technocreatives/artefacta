@@ -31,8 +31,9 @@ impl Build {
 }
 
 impl Build {
+    #[allow(unused)]
     pub fn size(&self) -> u64 {
-        if let Some(entry) = self.local.as_ref().or(self.remote.as_ref()) {
+        if let Some(entry) = self.local.as_ref().or_else(|| self.remote.as_ref()) {
             entry.size
         } else {
             panic!(
