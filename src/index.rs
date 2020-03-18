@@ -36,6 +36,9 @@ impl Index {
         patch_graph
             .update_from_file_list(&local.list_files().context("list files")?, Location::Local)
             .with_context(|| format!("build patch graph from `{:?}`", local))?;
+        patch_graph
+            .update_from_file_list(&remote.list_files().context("list files")?, Location::Remote)
+            .with_context(|| format!("build patch graph from `{:?}`", remote))?;
 
         Ok(Index {
             local,
