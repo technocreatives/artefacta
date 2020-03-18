@@ -16,10 +16,10 @@ pub fn package(source_dir: &Path, target: impl Write) -> Result<()> {
         .sort_by(|a, b| a.path().cmp(b.path()))
         .into_iter();
 
-    for file in dbg!(entries) {
+    for file in entries {
         let file = file.context("read file")?;
         if file.file_type().is_dir() {
-            dbg!(file);
+            log::trace!("skipping directory entry in tar");
         } else if file.file_type().is_file() {
             add_file(&mut archive, &file, source_dir)
                 .with_context(|| format!("add `{}` to archive", file.path().display()))?;
@@ -37,7 +37,6 @@ fn add_file<W: Write>(
     root: &Path,
 ) -> Result<()> {
     let path = file.path().strip_prefix(root).context("root path prefix")?;
-    dbg!(&path);
     let mut header = tar::Header::new_gnu();
 
     header
@@ -61,29 +60,40 @@ mod tests {
 
     proptest! {
         #[test]
-        fn determinsitic_tar(files in prop::collection::vec(r"[[:alnum:]]+", 1..10)) {
-            dbg!(&files);
-            let dir1 = tempdir().expect("tempdir");
+        fn determinsitic_tar(files in prop::collection::vec(r"[0-9A-Za-z][0-9A-Za-z/]+[0-9A-Za-z]", 1..10)) {
+            let tmp = tempdir().expect("tempdir");
+            let dir1 = tmp.path().join("dir1");
+            let dir2 = tmp.path().join("dir2");
+
+            // create some random files in random paths
             for f in &files {
-                random_file(&dir1.path().join(f)).expect("random_file");
+                random_file(&dir1.join(f)).expect("random_file");
             }
 
+            // package this dir
             let mut output1 = Vec::new();
-            package(dir1.path(), &mut output1).expect("package");
+            package(&dir1, &mut output1).expect("package");
 
+            // copy this dir to a new one!
+            let cmd = std::process::Command::new("cp")
+                .arg("-r")
+                .arg("dir1")
+                .arg("dir2")
+                .current_dir(tmp.path())
+                .output()
+                .expect("cp");
+            dbg!(&cmd);
+            prop_assert!(cmd.status.success());
 
-            let dir2 = tempdir().expect("tempdir");
-            for f in &files {
-                fs::copy(&dir1.path().join(f), &dir2.path().join(f)).expect("copy");
-            }
-
+            // package copied dir
             let mut output2 = Vec::new();
-            package(dir2.path(), &mut output2).expect("package");
+            package(&dir2, &mut output2).expect("package");
 
-
+            // read both back in
             let mut arch1 = tar::Archive::new(Cursor::new(&output1));
             let mut arch2 = tar::Archive::new(Cursor::new(&output2));
 
+            // assert they have the same entries (quick to compare)
             arch1.entries().expect("tar entries").zip(arch2.entries().expect("tar entries")).for_each(|(f1, f2)| {
                 assert_eq!(
                     format!("{:?}", f1.expect("read file").header()),
@@ -91,7 +101,20 @@ mod tests {
                 );
             });
 
+            // assert the archives are actually bit-identical
             prop_assert!(output1 == output2);
+
+            // and now for good measure check they can also be read by the system's `tar`
+            fs::write(tmp.path().join("dir1.tar"), output1).expect("write tar");
+            let cmd = std::process::Command::new("tar")
+                .arg("--list")
+                .arg("--file")
+                .arg("dir1.tar")
+                .current_dir(tmp.path())
+                .output()
+                .expect("tar");
+            // dbg!(&cmd);
+            prop_assert!(cmd.status.success());
         }
     }
 }

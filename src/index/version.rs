@@ -1,19 +1,15 @@
 use anyhow::Result;
 use std::{convert::TryFrom, fmt, str::FromStr};
 
-const MAX_LENGTH: usize = 23;
-
-/// Super-short string, all data stored inline
-#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+/// Short string in specific format. Cheap to clone.
+#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Version {
-    len: u8,
-    data: [u8; MAX_LENGTH],
+    data: smol_str::SmolStr,
 }
 
 impl Version {
     pub fn as_str(&self) -> &str {
-        // Data is a valid subset of an UTF-8 string by construction
-        unsafe { std::str::from_utf8_unchecked(&self.data[..self.len as usize]) }
+        self.data.as_str()
     }
 }
 
@@ -27,29 +23,8 @@ impl FromStr for Version {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        anyhow::ensure!(
-            s.len() <= MAX_LENGTH,
-            "string `{}` too long to use as version",
-            s,
-        );
-
-        let mut v = [0u8; MAX_LENGTH];
-        let len = std::cmp::min(s.len(), MAX_LENGTH);
-
-        anyhow::ensure!(
-            s.is_char_boundary(len),
-            "version string too long and cut-off point not at char boundary",
-        );
-
-        s.as_bytes()[..len]
-            .iter()
-            .enumerate()
-            .for_each(|(i, c)| v[i] = *c);
-
-        Ok(Version {
-            len: len as u8,
-            data: v,
-        })
+        // TODO: Validate for specific format
+        Ok(Version { data: s.into() })
     }
 }
 

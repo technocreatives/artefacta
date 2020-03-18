@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use std::{convert::TryFrom, path::Path};
 
-use crate::Version;
+use crate::index::Version;
 
 pub fn path_as_string(path: impl AsRef<Path>) -> Result<String> {
     let path = path.as_ref();
@@ -22,6 +22,10 @@ pub fn file_name(path: impl AsRef<Path>) -> Result<String> {
         .next()
         .expect("`splitn` always returns at least one item");
     Ok(name.to_string())
+}
+
+pub fn build_path_from_version(v: Version) -> Result<String> {
+    Ok(format!("{}.tar.zst", v.as_str()))
 }
 
 pub fn build_version_from_path(path: impl AsRef<Path>) -> Result<Version> {
