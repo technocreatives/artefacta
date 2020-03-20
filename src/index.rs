@@ -21,7 +21,13 @@ pub use graph::{Location, PatchGraph};
 mod version;
 pub use version::Version;
 
-#[derive(Debug)]
+/// Artefact index
+///
+/// Contains local and remote storage as well as graph build from the current
+/// contents of the storages.
+///
+/// This is the main entry point for interacting with any build and patch files.
+#[derive(Debug, Clone)]
 pub struct Index {
     local: Storage,
     remote: Storage,
@@ -141,6 +147,21 @@ impl Index {
             )
         })?;
         Ok(file)
+    }
+
+    pub fn upgrade_build(&self, from: Version, to: Version) -> Result<Entry> {
+        anyhow::ensure!(
+            self.patch_graph.has_build(from.clone()),
+            "build `{:?}` unknown",
+            from
+        );
+        anyhow::ensure!(
+            self.patch_graph.has_build(to.clone()),
+            "build `{:?}` unknown",
+            to
+        );
+
+        todo!()
     }
 
     /// Get build (adds to local cache if not present)

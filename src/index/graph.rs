@@ -5,6 +5,10 @@ use petgraph::stable_graph::{DefaultIx, EdgeIndex, NodeIndex, StableGraph as Gra
 use std::{collections::HashMap, convert::TryFrom, fs::ReadDir, io::Error as IoError};
 
 /// Graph of builds and upgrade paths using patches
+///
+/// Tracks all builds (identified by local and remote files) as well as patches
+/// between them. Builds are nodes in the directed graph, patches are edges
+/// between them.
 #[derive(Debug, Clone, Default)]
 pub struct PatchGraph {
     graph: Graph<Build, Patch>,
