@@ -43,18 +43,3 @@ impl<'a> TryFrom<&'a String> for Version {
         s.parse()
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use proptest::prelude::*;
-
-    proptest! {
-        #[test]
-        fn version_from_str_then_print(s in "\\PC*") {
-            if let Ok(v) = Version::from_str(&s) {
-                let _x = v.as_str();
-            }
-        }
-    }
-}
