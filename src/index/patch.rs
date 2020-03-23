@@ -4,10 +4,10 @@ use std::fmt;
 /// Patch from old to new build
 #[derive(Debug, Clone, Eq, PartialOrd, Ord)]
 pub struct Patch {
-    from: Version,
-    to: Version,
-    local: Option<Entry>,
-    remote: Option<Entry>,
+    pub(crate) from: Version,
+    pub(crate) to: Version,
+    pub(crate) local: Option<Entry>,
+    pub(crate) remote: Option<Entry>,
 }
 
 /// Builder
