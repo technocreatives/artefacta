@@ -4,8 +4,8 @@ use crate::{index::Version, storage::Entry};
 #[derive(Debug, Clone, Eq, PartialOrd, Ord)]
 pub struct Build {
     pub(crate) version: Version,
-    local: Option<Entry>,
-    remote: Option<Entry>,
+    pub(crate) local: Option<Entry>,
+    pub(crate) remote: Option<Entry>,
 }
 
 /// Builder

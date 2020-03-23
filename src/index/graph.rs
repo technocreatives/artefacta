@@ -128,6 +128,16 @@ impl PatchGraph {
         self.builds.contains_key(&v)
     }
 
+    fn local_build(&self, v: Version) -> Option<&Entry> {
+        let build_idx = self.builds.get(&v)?;
+        let build = self.graph.node_weight(*build_idx)?;
+        build.local.as_ref()
+    }
+
+    pub(crate) fn has_local_build(&self, v: Version) -> bool {
+        self.local_build(v).is_some()
+    }
+
     pub(crate) fn has_patch(&self, from: Version, to: Version) -> bool {
         self.patches.contains_key(&(from, to))
     }

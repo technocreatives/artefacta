@@ -174,7 +174,7 @@ impl Index {
             UpgradePath::ApplyPatches(patches) => {
                 let needed_patches = patches
                     .into_iter()
-                    .skip_while(|patch| self.patch_graph.has_build(patch.to.clone()))
+                    .skip_while(|patch| self.patch_graph.has_local_build(patch.to.clone()))
                     .collect::<Vec<Patch>>();
 
                 for patch in needed_patches {
