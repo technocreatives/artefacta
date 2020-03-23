@@ -1,4 +1,4 @@
-pub(crate) mod paths;
+pub mod paths;
 
 mod apply_patch;
 pub use apply_patch::apply_patch;
