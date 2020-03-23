@@ -132,7 +132,7 @@ impl Index {
             "patch `{:?}` unknown",
         );
 
-        let patch = Patch::new(from.clone(), to.clone());
+        let patch = Patch::new(from, to);
         let patch_name = patch.to_string() + ".zst";
         match self.local.get_file(&patch_name) {
             Ok(local_file) => return Ok(local_file),
