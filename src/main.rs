@@ -1,8 +1,8 @@
 use anyhow::{Context, Result};
-use std::path::PathBuf;
+use std::{fs, path::PathBuf};
 use structopt::StructOpt;
 
-use artefacta::{ArtefactIndex, Storage, Version};
+use artefacta::{paths, ArtefactIndex, Storage, Version};
 
 #[derive(Debug, StructOpt)]
 struct Cli {
@@ -59,21 +59,34 @@ fn main() -> Result<()> {
     let mut index = ArtefactIndex::new(&args.local_store, args.remote_store.clone())
         .context("open artifact store")?;
     match args.cmd {
-        Command::Install { version } => {
-            let build = index.get_build(version).context("get build")?;
-            dbg!(&build);
-
+        Command::Install {
+            version: target_version,
+        } => {
             let current = args.local_store.join("current");
+            let target_build = match fs::read_link(&current) {
+                Ok(curent_path) => {
+                    let current_version = paths::build_version_from_path(&curent_path)?;
+                    index
+                        .upgrade_to_build(current_version, target_version)
+                        .context("get build")?
+                }
+                Err(e) => {
+                    log::debug!("could not read `current` symlink: {}", e);
+                    index.get_build(target_version).context("get build")?
+                }
+            };
+
+            dbg!(&target_build);
 
             #[cfg(unix)]
             use std::os::unix::fs::symlink;
             #[cfg(windows)]
             use std::os::windows::fs::symlink_file as symlink;
 
-            symlink(&build.path, &current).with_context(|| {
+            symlink(&target_build.path, &current).with_context(|| {
                 format!(
                     "create symlink pointing at new build: {} to {}",
-                    build.path,
+                    target_build.path,
                     current.display()
                 )
             })?;

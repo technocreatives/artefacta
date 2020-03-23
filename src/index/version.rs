@@ -19,6 +19,12 @@ impl fmt::Debug for Version {
     }
 }
 
+impl fmt::Display for Version {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.data)
+    }
+}
+
 impl FromStr for Version {
     type Err = anyhow::Error;
 
@@ -41,20 +47,5 @@ impl<'a> TryFrom<&'a String> for Version {
 
     fn try_from(s: &String) -> Result<Self> {
         s.parse()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use proptest::prelude::*;
-
-    proptest! {
-        #[test]
-        fn version_from_str_then_print(s in "\\PC*") {
-            if let Ok(v) = Version::from_str(&s) {
-                let _x = v.as_str();
-            }
-        }
     }
 }

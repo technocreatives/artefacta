@@ -5,6 +5,10 @@ use petgraph::stable_graph::{DefaultIx, EdgeIndex, NodeIndex, StableGraph as Gra
 use std::{collections::HashMap, convert::TryFrom, fs::ReadDir, io::Error as IoError};
 
 /// Graph of builds and upgrade paths using patches
+///
+/// Tracks all builds (identified by local and remote files) as well as patches
+/// between them. Builds are nodes in the directed graph, patches are edges
+/// between them.
 #[derive(Debug, Clone, Default)]
 pub struct PatchGraph {
     graph: Graph<Build, Patch>,
@@ -124,11 +128,21 @@ impl PatchGraph {
         self.builds.contains_key(&v)
     }
 
+    fn local_build(&self, v: Version) -> Option<&Entry> {
+        let build_idx = self.builds.get(&v)?;
+        let build = self.graph.node_weight(*build_idx)?;
+        build.local.as_ref()
+    }
+
+    pub(crate) fn has_local_build(&self, v: Version) -> bool {
+        self.local_build(v).is_some()
+    }
+
     pub(crate) fn has_patch(&self, from: Version, to: Version) -> bool {
         self.patches.contains_key(&(from, to))
     }
 
-    fn patches_needed(&self, from: Version, to: Version) -> Result<(u64, Vec<String>)> {
+    fn patches_needed(&self, from: Version, to: Version) -> Result<(u64, Vec<Patch>)> {
         let from_idx = *self.builds.get(&from).context("unknown `from` version")?;
         let to_idx = *self.builds.get(&to).context("unknown `to` version")?;
 
@@ -140,12 +154,12 @@ impl PatchGraph {
             |_| 0,
         )
         .with_context(|| format!("no A& solution for patch from `{:?}` to `{:?}`", from, to))?;
-        let mut path: Vec<String> = steps
+        let mut path: Vec<_> = steps
             .windows(2)
             .map(|x| {
                 let from = self.graph[x[0]].version.clone();
                 let to = self.graph[x[1]].version.clone();
-                Patch::new(from, to).to_string()
+                Patch::new(from, to)
             })
             .collect();
         path.sort();
@@ -153,30 +167,30 @@ impl PatchGraph {
         Ok((cost, path))
     }
 
-    #[allow(unused)]
     pub fn find_upgrade_path(&self, from: Version, to: Version) -> Result<UpgradePath> {
-        let next_build = *self
+        let next_build_idx = *self
             .builds
             .get(&to)
             .with_context(|| format!("unknown build size for `{:?}`", to))?;
-        let build_size = self.graph[next_build].size();
+        let next_build = self.graph[next_build_idx].clone();
+        let build_size = next_build.size();
 
-        let res = self.patches_needed(from, to.clone()).map_err(|e| {
+        let res = self.patches_needed(from, to).map_err(|e| {
             log::debug!("{}", e);
             e
         });
 
         match res {
             Ok((size, path)) if build_size > size => Ok(UpgradePath::ApplyPatches(path)),
-            _ => Ok(UpgradePath::InstallBuild(to.as_str().to_string())),
+            _ => Ok(UpgradePath::InstallBuild(next_build)),
         }
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum UpgradePath {
-    ApplyPatches(Vec<String>),
-    InstallBuild(String),
+    ApplyPatches(Vec<Patch>),
+    InstallBuild(Build),
 }
 
 impl TryFrom<ReadDir> for PatchGraph {
@@ -235,7 +249,10 @@ mod tests {
 
         assert_eq!(
             res,
-            UpgradePath::ApplyPatches(vec![String::from("1-2.patch"), String::from("2-3.patch")])
+            UpgradePath::ApplyPatches(vec![
+                Patch::new("1".parse()?, "2".parse()?),
+                Patch::new("2".parse()?, "3".parse()?),
+            ])
         );
 
         Ok(())
@@ -281,7 +298,7 @@ mod tests {
 
         let res = graph.find_upgrade_path(installed_version, target_version)?;
 
-        assert_eq!(res, UpgradePath::InstallBuild(String::from("3")));
+        assert_eq!(res, UpgradePath::InstallBuild(Build::new("3".parse()?)));
 
         Ok(())
     }

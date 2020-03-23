@@ -2,12 +2,12 @@ use crate::{index::Version, storage::Entry};
 use std::fmt;
 
 /// Patch from old to new build
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialOrd, Ord)]
 pub struct Patch {
-    from: Version,
-    to: Version,
-    local: Option<Entry>,
-    remote: Option<Entry>,
+    pub(crate) from: Version,
+    pub(crate) to: Version,
+    pub(crate) local: Option<Entry>,
+    pub(crate) remote: Option<Entry>,
 }
 
 /// Builder
@@ -43,5 +43,11 @@ impl Patch {
 impl fmt::Display for Patch {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}-{}.patch", self.from.as_str(), self.to.as_str())
+    }
+}
+
+impl PartialEq for Patch {
+    fn eq(&self, other: &Patch) -> bool {
+        self.from == other.from && self.to == other.to
     }
 }

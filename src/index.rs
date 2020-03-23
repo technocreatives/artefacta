@@ -1,12 +1,12 @@
 use crate::{
-    paths,
+    apply_patch, paths,
     storage::{Entry, Storage},
 };
 use anyhow::{Context, Result};
 use std::{
     convert::TryFrom,
     fs::{self, File},
-    io::{BufReader, Read},
+    io::{self, BufReader, Read},
     path::Path,
 };
 
@@ -17,11 +17,17 @@ pub use build::Build;
 mod patch;
 pub use patch::Patch;
 mod graph;
-pub use graph::{Location, PatchGraph};
+pub use graph::{Location, PatchGraph, UpgradePath};
 mod version;
 pub use version::Version;
 
-#[derive(Debug)]
+/// Artefact index
+///
+/// Contains local and remote storage as well as graph build from the current
+/// contents of the storages.
+///
+/// This is the main entry point for interacting with any build and patch files.
+#[derive(Debug, Clone)]
 pub struct Index {
     local: Storage,
     remote: Storage,
@@ -90,6 +96,7 @@ impl Index {
         let new_build = read_file(new_build).context("read new build")?;
 
         let path_name = Patch::new(from.clone(), to.clone());
+        // TODO: Fix that arbitrary "+ zst" here and everywhere else
         let patch_path = local.join(path_name.to_string() + ".zst");
         log::info!("write patch {:?} to `{:?}`", path_name, patch_path);
 
@@ -119,33 +126,117 @@ impl Index {
         Ok(())
     }
 
-    pub fn get_patch(&self, from: Version, to: Version) -> Result<File> {
+    pub fn get_patch(&mut self, from: Version, to: Version) -> Result<Entry> {
         anyhow::ensure!(
             self.patch_graph.has_patch(from.clone(), to.clone()),
             "patch `{:?}` unknown",
-            (from, to)
         );
-        let local = self
-            .local
-            .local_path()
-            .context("patch can only be read from local storage right now")?;
 
-        let path = local
-            .join(format!("{}-{}", from.as_str(), to.as_str()))
-            .with_extension("patch.zst");
-        let file = File::open(&path).with_context(|| {
-            format!(
-                "could not open file `{:?}` for patch `{:?}`",
-                path.display(),
-                (from, to)
-            )
-        })?;
-        Ok(file)
+        let patch = Patch::new(from, to);
+        let patch_name = patch.to_string() + ".zst";
+        match self.local.get_file(&patch_name) {
+            Ok(local_file) => return Ok(local_file),
+            Err(e) => log::debug!("could not get local patch {:?}: {}", patch, e),
+        }
+
+        let remote_entry = self
+            .remote
+            .get_file(&patch_name)
+            .with_context(|| format!("can't find `{}` either locally or remotely", patch))?;
+
+        self.add_patch(&remote_entry.path)
+            .context("copy remote entry to local storage")?;
+        let newly_local_build = self
+            .local
+            .get_file(&patch_name)
+            .context("fetch newly added local build")?;
+        Ok(newly_local_build)
+    }
+
+    /// Upgrade from one version to the next
+    pub fn upgrade_to_build(&mut self, from: Version, to: Version) -> Result<Entry> {
+        anyhow::ensure!(
+            self.patch_graph.has_build(from.clone()),
+            "build `{:?}` unknown",
+            from
+        );
+        anyhow::ensure!(
+            self.patch_graph.has_build(to.clone()),
+            "build `{:?}` unknown",
+            to
+        );
+
+        match self
+            .patch_graph
+            .find_upgrade_path(from.clone(), to.clone())
+            .with_context(|| format!("can't find upgrade path from `{:?}` to `{:?}", from, to))?
+        {
+            UpgradePath::ApplyPatches(patches) => {
+                let needed_patches = patches
+                    .into_iter()
+                    .skip_while(|patch| self.patch_graph.has_local_build(patch.to.clone()))
+                    .collect::<Vec<Patch>>();
+
+                for patch in needed_patches {
+                    self.add_build_from_patch(&patch)
+                        .with_context(|| format!("add build from patch `{:?}`", patch))?;
+                }
+
+                let local_build = self.get_build(to).context("fetch just added build")?;
+                Ok(local_build)
+            }
+            UpgradePath::InstallBuild(_build) => {
+                let local_build = self.get_build(to).context("install fresh build")?;
+                Ok(local_build)
+            }
+        }
+    }
+
+    fn add_build_from_patch(&mut self, patch: &Patch) -> Result<Entry> {
+        let patch_file = self
+            .get_patch(patch.from.clone(), patch.to.clone())
+            .context("fetch patch")?;
+        let source_build = self
+            .get_build(patch.from.clone())
+            .context("fetch source build")?;
+
+        let build_temp_name = format!("tmp.{}.tar.zst", patch.to);
+        let build_real_name = format!("{}.tar.zst", patch.to);
+
+        let build_root = self.local.local_path().context("local storage not local")?;
+        let build_temp_path = build_root.join(&build_temp_name);
+        let build_real_path = build_root.join(&build_real_name);
+
+        let mut build_file = ZstdEncoder::new(
+            File::create(&build_temp_path).with_context(|| {
+                format!("create new build file `{}`", build_temp_path.display())
+            })?,
+            3,
+        )
+        .context("zstd writer for new build")?;
+        let mut patch_data =
+            apply_patch(&source_build.path, &patch_file.path).context("apply patch")?;
+
+        io::copy(&mut patch_data, &mut build_file).context("write patch")?;
+        build_file.finish().context("finish zstd writer")?;
+
+        fs::rename(&build_temp_path, &build_real_path).context("rename tmp build file")?;
+
+        let entry = Entry::from_path(&build_real_path, self.local.clone())
+            .context("create entry for new build file")?;
+
+        self.patch_graph
+            .add_build(&patch.to, entry.clone(), Location::Local)
+            .with_context(|| {
+                format!(
+                    "add newly created build `{}` to index",
+                    build_real_path.display()
+                )
+            })?;
+        Ok(entry)
     }
 
     /// Get build (adds to local cache if not present)
-    ///
-    /// TODO: Use `Index::find_upgrade_path` if build isn't available locally
     pub fn get_build(&mut self, version: Version) -> Result<Entry> {
         anyhow::ensure!(
             self.patch_graph.has_build(version.clone()),
@@ -176,7 +267,7 @@ impl Index {
     }
 
     /// Add build to graph and copy it into index's root directory
-    pub(crate) fn add_build(&mut self, path: impl AsRef<Path>) -> Result<()> {
+    pub(crate) fn add_build(&mut self, path: impl AsRef<Path>) -> Result<Entry> {
         let path = path.as_ref();
         let path = path
             .canonicalize()
@@ -189,7 +280,7 @@ impl Index {
 
         anyhow::ensure!(
             !path.starts_with(&local),
-            "asked to add build from index directory"
+            "asked to add build from same directory it would be written to"
         );
 
         let file_name = paths::file_name(&path)?;
@@ -198,25 +289,46 @@ impl Index {
         fs::copy(&path, &new_path)
             .with_context(|| format!("copy `{}` to `{}`", path.display(), new_path.display()))?;
 
-        let size = path
-            .metadata()
-            .with_context(|| {
-                format!(
-                    "can't read metadata for new build file `{}`",
-                    path.display()
-                )
-            })?
-            .len();
-
-        let entry = Entry {
-            storage: self.local.clone(),
-            path: paths::path_as_string(new_path)?,
-            size,
-        };
+        let entry = Entry::from_path(&new_path, self.local.clone())
+            .context("create entry for new build file")?;
 
         self.patch_graph
-            .add_build(&version, entry, Location::Local)
+            .add_build(&version, entry.clone(), Location::Local)
             .with_context(|| format!("add build `{}`", path.display()))?;
+        Ok(entry)
+    }
+
+    /// Add build to graph and copy it into index's root directory
+    ///
+    /// TODO: Refactor this and add_build to be the same generic method
+    pub(crate) fn add_patch(&mut self, path: impl AsRef<Path>) -> Result<()> {
+        let path = path.as_ref();
+        let path = path
+            .canonicalize()
+            .with_context(|| format!("canonicalize {}", path.display()))?;
+
+        let local = self
+            .local
+            .local_path()
+            .context("add_patch can only write to local storage right now")?;
+
+        anyhow::ensure!(
+            !path.starts_with(&local),
+            "asked to add patch from same directory it would be written to"
+        );
+
+        let (from, to) = paths::patch_versions_from_path(&path)?;
+        let patch = Patch::new(from.clone(), to.clone());
+        let new_path = local.join(patch.to_string());
+        fs::copy(&path, &new_path)
+            .with_context(|| format!("copy `{}` to `{}`", path.display(), new_path.display()))?;
+
+        let entry = Entry::from_path(&new_path, self.local.clone())
+            .context("create entry for new build file")?;
+
+        self.patch_graph
+            .add_patch(&from, &to, entry, Location::Local)
+            .with_context(|| format!("add patch `{}`", path.display()))?;
         Ok(())
     }
 

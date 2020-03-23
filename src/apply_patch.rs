@@ -6,7 +6,10 @@ use std::{
 };
 use zstd::stream::read::Decoder as ZstdDecoder;
 
-pub fn apply_patch(archive: &Path, patch: &Path) -> Result<impl Read> {
+pub fn apply_patch(archive: impl AsRef<Path>, patch: impl AsRef<Path>) -> Result<impl Read> {
+    let archive = archive.as_ref();
+    let patch = patch.as_ref();
+
     let patch_file =
         File::open(patch).with_context(|| format!("open file `{}`", patch.display()))?;
     let patch_decompressed = ZstdDecoder::new(patch_file)

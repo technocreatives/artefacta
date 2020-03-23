@@ -1,4 +1,4 @@
-use crate::paths::path_as_string;
+use crate::paths::{self, path_as_string};
 use anyhow::{Context, Result};
 pub use std::{
     convert::TryFrom,
@@ -26,12 +26,12 @@ use url::Url;
 /// assert!(local_dir.is_local());
 /// assert!(local_dir.local_path().is_some());
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Storage {
     inner: Arc<InnerStorage>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 enum InnerStorage {
     Filesystem(PathBuf),
     S3(Url),
@@ -79,11 +79,32 @@ impl FromStr for Storage {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Entry {
     pub storage: Storage,
     pub path: String,
     pub size: u64,
+}
+
+impl Entry {
+    pub fn from_path(path: impl AsRef<Path>, storage: Storage) -> Result<Self> {
+        let path = path.as_ref();
+        let size = path
+            .metadata()
+            .with_context(|| {
+                format!(
+                    "can't read metadata for new build file `{}`",
+                    path.display()
+                )
+            })?
+            .len();
+
+        Ok(Entry {
+            storage,
+            path: paths::path_as_string(path)?,
+            size,
+        })
+    }
 }
 
 impl Storage {

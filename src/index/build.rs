@@ -1,11 +1,11 @@
 use crate::{index::Version, storage::Entry};
 
 /// Artefact with version
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialOrd, Ord)]
 pub struct Build {
     pub(crate) version: Version,
-    local: Option<Entry>,
-    remote: Option<Entry>,
+    pub(crate) local: Option<Entry>,
+    pub(crate) remote: Option<Entry>,
 }
 
 /// Builder
@@ -41,5 +41,11 @@ impl Build {
                 self.version
             )
         }
+    }
+}
+
+impl PartialEq for Build {
+    fn eq(&self, other: &Build) -> bool {
+        self.version == other.version
     }
 }
