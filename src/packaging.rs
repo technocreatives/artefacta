@@ -58,6 +58,31 @@ mod tests {
     use crate::test_helpers::*;
     use proptest::prelude::*;
 
+    #[test]
+    fn archive_is_fine() {
+        use zstd::stream::write::Encoder as ZstdEncoder;
+
+        let tmp = tempdir().expect("tempdir");
+        let archive = tmp.path().join("archive.tar.zst");
+
+        let mut output = ZstdEncoder::new(fs::File::create(&archive).unwrap(), 3).unwrap();
+        package("src".as_ref(), &mut output).expect("package");
+        output.finish().unwrap();
+
+        let cmd = std::process::Command::new("tar")
+            .arg("-Izstd")
+            .arg("-xvf")
+            .arg(&archive)
+            .current_dir(tmp.path())
+            .output()
+            .expect("tar");
+        dbg!(&cmd);
+        assert!(cmd.status.success());
+
+        let ls = std::process::Command::new("ls").output().unwrap();
+        dbg!(&ls);
+    }
+
     proptest! {
         #[test]
         fn determinsitic_tar(files in prop::collection::vec(r"[0-9A-Za-z][0-9A-Za-z/]+[0-9A-Za-z]", 1..10)) {

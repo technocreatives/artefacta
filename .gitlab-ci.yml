@@ -8,6 +8,8 @@ variables:
 
 test:
   stage: test
+  before_script:
+    - apt update && apt install zstd
   script:
     - cargo test --all --verbose
 
