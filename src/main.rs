@@ -37,7 +37,8 @@ enum Command {
     },
 }
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     color_backtrace::install();
 
     let args = Cli::from_args();
@@ -57,6 +58,7 @@ fn main() -> Result<()> {
 
     log::debug!("{:?}", args);
     let mut index = ArtefactIndex::new(&args.local_store, args.remote_store.clone())
+        .await
         .context("open artifact store")?;
     match args.cmd {
         Command::Install {
@@ -68,11 +70,12 @@ fn main() -> Result<()> {
                     let current_version = paths::build_version_from_path(&curent_path)?;
                     index
                         .upgrade_to_build(current_version, target_version)
+                        .await
                         .context("get build")?
                 }
                 Err(e) => {
                     log::debug!("could not read `current` symlink: {}", e);
-                    index.get_build(target_version).context("get build")?
+                    index.get_build(target_version).await.context("get build")?
                 }
             };
 
