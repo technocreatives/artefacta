@@ -20,32 +20,18 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        os: [ubuntu-latest, windows-latest, macOS-latest]
+        os: [ubuntu-16.04, windows-latest, macOS-latest]
 
     steps:
     - name: Checkout repository
       uses: actions/checkout@v2
 
     - name: Install Rust
-      if: "!startsWith(matrix.os, 'ubuntu')"
       uses: actions-rs/toolchain@v1
       with:
         toolchain: ${{ env.RUST_VERSION }}
         profile: minimal
         override: true
-
-    - name: Install Rust toolchain on Linux
-      if: startsWith(matrix.os, 'ubuntu')
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: ${{ env.RUST_VERSION }}
-        target: x86_64-unknown-linux-musl
-        profile: minimal
-        override: true
-    - name: Install MUSL tooling on Linux
-      if: startsWith(matrix.os, 'ubuntu')
-      run: |
-        sudo apt install -y musl musl-tools
 
     - name: Build
       uses: actions-rs/cargo@v1
@@ -83,7 +69,7 @@ jobs:
         path: dist
   release:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-16.04
     steps:
       - uses: actions/checkout@v1
       - name: Get Package Version
@@ -91,7 +77,7 @@ jobs:
       - name: Download Linux Binary
         uses: actions/download-artifact@v1
         with:
-          name: ${{ env.BIN_NAME }}-ubuntu-latest
+          name: ${{ env.BIN_NAME }}-ubuntu-16.04
       - name: Download Windows Binary
         uses: actions/download-artifact@v1
         with:
@@ -117,7 +103,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./${{ env.BIN_NAME }}-ubuntu-latest/${{ env.BIN_NAME }}.tar.xz
+          asset_path: ./${{ env.BIN_NAME }}-ubuntu-16.04/${{ env.BIN_NAME }}.tar.xz
           asset_name: ${{ env.BIN_NAME }}_${{ env.PACKAGE_VERSION }}_linux_amd64.tar.xz
           asset_content_type: application/octet-stream
       - name: Upload artifact Windows
