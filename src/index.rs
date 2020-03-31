@@ -176,6 +176,7 @@ impl Index {
 
     /// Upgrade from one version to the next
     pub async fn upgrade_to_build(&mut self, from: Version, to: Version) -> Result<Entry> {
+        log::debug!("searching for upgrade path from `{}` to `{}`", from, to);
         anyhow::ensure!(
             self.patch_graph.has_build(from.clone()),
             "build `{:?}` unknown",
@@ -193,10 +194,15 @@ impl Index {
             .with_context(|| format!("can't find upgrade path from `{:?}` to `{:?}", from, to))?
         {
             UpgradePath::ApplyPatches(patches) => {
+                log::debug!("found upgrade path via patches: {:?}", patches);
                 let needed_patches = patches
                     .into_iter()
                     .skip_while(|patch| self.patch_graph.has_local_build(patch.to.clone()))
                     .collect::<Vec<Patch>>();
+                log::debug!(
+                    "using already existing local builds, we need to fetch: {:?}",
+                    needed_patches
+                );
 
                 for patch in needed_patches {
                     self.add_build_from_patch(&patch)
@@ -205,9 +211,11 @@ impl Index {
                 }
 
                 let local_build = self.get_build(to).await.context("fetch just added build")?;
+                log::debug!("arrived at final build: {:?}", local_build);
                 Ok(local_build)
             }
-            UpgradePath::InstallBuild(_build) => {
+            UpgradePath::InstallBuild(build) => {
+                log::debug!("found upgrade path installing build `{:?}`", build);
                 let local_build = self.get_build(to).await.context("install fresh build")?;
                 Ok(local_build)
             }
@@ -248,6 +256,11 @@ impl Index {
 
         let entry = Entry::from_path(&build_real_path, self.local.clone())
             .context("create entry for new build file")?;
+        log::debug!(
+            "created new build `{:?}` from patch `{:?}`",
+            entry,
+            patch_file
+        );
 
         self.patch_graph
             .add_build(&patch.to, entry.clone(), Location::Local)
@@ -270,7 +283,10 @@ impl Index {
 
         let build_path = paths::build_path_from_version(version.clone())?;
         match self.get_local_file(&build_path).await {
-            Ok(local) => return Ok(local),
+            Ok(local) => {
+                log::debug!("using local file for build `{:?}`", local);
+                return Ok(local);
+            }
             Err(e) => log::debug!("could not get local patch {:?}: {}", build_path, e),
         }
 

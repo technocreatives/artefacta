@@ -72,18 +72,24 @@ async fn main() -> Result<()> {
             let target_build = match fs::read_link(&current) {
                 Ok(curent_path) => {
                     let current_version = paths::build_version_from_path(&curent_path)?;
+                    log::debug!(
+                        "identified version `{}` from path `{}`",
+                        current_version,
+                        curent_path.display()
+                    );
                     index
-                        .upgrade_to_build(current_version, target_version)
+                        .upgrade_to_build(current_version, target_version.clone())
                         .await
                         .context("get build")?
                 }
                 Err(e) => {
                     log::debug!("could not read `current` symlink: {}", e);
-                    index.get_build(target_version).await.context("get build")?
+                    index
+                        .get_build(target_version.clone())
+                        .await
+                        .context("get build")?
                 }
             };
-
-            dbg!(&target_build);
 
             #[cfg(unix)]
             use std::os::unix::fs::symlink;
@@ -101,13 +107,24 @@ async fn main() -> Result<()> {
                     current.display()
                 )
             })?;
+            log::info!(
+                "successfully installed `{}` as `{}`",
+                target_version,
+                current.display()
+            );
         }
         Command::Add { path, upload } => {
-            index
+            let entry = index
                 .add_local_build(&path)
                 .with_context(|| format!("add `{}` as new build", path.display()))?;
+            log::info!(
+                "successfully added `{}` as `{:?}` to local index",
+                path.display(),
+                entry
+            );
 
             if upload {
+                log::debug!("uploading `{}`…", entry.path);
                 index.push().await.context("sync local changes to remote")?;
             }
         }
