@@ -90,6 +90,10 @@ async fn main() -> Result<()> {
             #[cfg(windows)]
             use std::os::windows::fs::symlink_file as symlink;
 
+            if current.exists() {
+                fs::remove_file(&current).context("clear old `current` symlink")?;
+            }
+
             symlink(&target_build.path, &current).with_context(|| {
                 format!(
                     "create symlink pointing at new build: {} to {}",
