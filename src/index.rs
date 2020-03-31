@@ -313,7 +313,7 @@ impl Index {
         let new_path = local.join(format!("{}.tar.zst", version.as_str()));
 
         match file {
-            FileEntry::InFilesystem(entry) => {
+            FileEntry::InFilesystem(_entry) => {
                 fs::copy(&path, &new_path).with_context(|| {
                     format!("copy `{}` to `{}`", path.display(), new_path.display())
                 })?;
@@ -361,7 +361,7 @@ impl Index {
         let new_path = local.join(patch.to_string());
 
         match file {
-            FileEntry::InFilesystem(entry) => {
+            FileEntry::InFilesystem(_entry) => {
                 fs::copy(&path, &new_path).with_context(|| {
                     format!("copy `{}` to `{}`", path.display(), new_path.display())
                 })?;
