@@ -19,13 +19,23 @@ pub use entry::Entry;
 ///
 /// Cheap to clone, but immutable.
 ///
+/// # Variants
+///
+/// - Local file system: Some directory on disk
+/// - S3: An S3 bucket, identified by a URL
+///
+///   NOTE: For connecting to S3, the necessary credentials are read from env
+///   variables by default. See [this page][1] for more details.
+///
+/// [1]: https://github.com/rusoto/rusoto/blob/e7ed8eabbb758bda4a857436ca572114de2bf283/AWS-CREDENTIALS.md
+///
 /// # Examples
 ///
 /// ```rust
 /// use std::convert::TryInto;
 /// use artefacta::Storage;
 ///
-/// let s3: Storage = "s3://my-bucket.ams3.digitaloceanspaces.com/?key=42".parse().unwrap();
+/// let s3: Storage = "s3://my-bucket.ams3.digitaloceanspaces.com/test".parse().unwrap();
 /// assert!(!s3.is_local());
 ///
 /// let local_dir: Storage = std::env::current_dir().unwrap().try_into().unwrap();
@@ -165,9 +175,10 @@ impl Storage {
                 use rusoto_s3::{GetObjectRequest, S3Client, S3};
                 use tokio::io::AsyncReadExt;
 
+                let key = bucket.key_for(path);
                 let get_req = GetObjectRequest {
                     bucket: bucket.bucket.to_owned(),
-                    key: bucket.path.to_owned(),
+                    key: key.clone(),
                     ..Default::default()
                 };
                 let client: S3Client = bucket.try_into().context("build S3 client")?;
@@ -175,7 +186,7 @@ impl Storage {
                 let result = client
                     .get_object(get_req)
                     .await
-                    .context("Couldn't get object")?;
+                    .with_context(|| format!("Couldn't get object with path `{}`", key))?;
 
                 // TODO: Check this. Checksums are in format `{md5}[-{parts}]`.
                 let checksum = result.e_tag.context("object has no checksum")?;

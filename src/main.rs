@@ -35,6 +35,7 @@ enum Command {
         #[structopt(long = "upload")]
         upload: bool,
     },
+    Debug,
 }
 
 #[tokio::main]
@@ -61,6 +62,9 @@ async fn main() -> Result<()> {
         .await
         .context("open artifact store")?;
     match args.cmd {
+        Command::Debug => {
+            dbg!(index);
+        }
         Command::Install {
             version: target_version,
         } => {
