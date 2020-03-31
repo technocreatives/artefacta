@@ -1,6 +1,6 @@
 use crate::{
     apply_patch, paths,
-    storage::{Entry, Storage},
+    storage::{Entry, File as FileEntry, Storage},
 };
 use anyhow::{Context, Result};
 use std::{
@@ -19,6 +19,7 @@ pub use patch::Patch;
 mod graph;
 pub use graph::{Location, PatchGraph, UpgradePath};
 mod version;
+use io::{BufWriter, Write};
 pub use version::Version;
 
 /// Artefact index
@@ -36,15 +37,18 @@ pub struct Index {
 
 impl Index {
     /// Build index from directory content
-    pub fn new(local: impl AsRef<Path>, remote: Storage) -> Result<Self> {
+    pub async fn new(local: impl AsRef<Path>, remote: Storage) -> Result<Self> {
         let local = Storage::try_from(local.as_ref()).context("invalid local storage path")?;
         let mut patch_graph = PatchGraph::empty();
         patch_graph
-            .update_from_file_list(&local.list_files().context("list files")?, Location::Local)
+            .update_from_file_list(
+                &local.list_files().await.context("list files")?,
+                Location::Local,
+            )
             .with_context(|| format!("build patch graph from `{:?}`", local))?;
         patch_graph
             .update_from_file_list(
-                &remote.list_files().context("list files")?,
+                &remote.list_files().await.context("list files")?,
                 Location::Remote,
             )
             .with_context(|| format!("build patch graph from `{:?}`", remote))?;
@@ -61,7 +65,7 @@ impl Index {
         todo!()
     }
 
-    pub fn calculate_patch(&mut self, from: Version, to: Version) -> Result<()> {
+    pub async fn calculate_patch(&mut self, from: Version, to: Version) -> Result<()> {
         fn read_file(entry: Entry) -> Result<Vec<u8>> {
             anyhow::ensure!(
                 entry.storage.is_local(),
@@ -76,7 +80,7 @@ impl Index {
             Ok(bytes)
         }
 
-        if self.get_patch(from.clone(), to.clone()).is_ok() {
+        if self.get_patch(from.clone(), to.clone()).await.is_ok() {
             log::warn!(
                 "asked to calculate patch from `{:?}` to `{:?}` but it's already present",
                 from,
@@ -90,9 +94,12 @@ impl Index {
             .local_path()
             .context("calculate patch can only write to local storage right now")?;
 
-        let old_build = self.get_build(from.clone()).context("get old build")?;
+        let old_build = self
+            .get_build(from.clone())
+            .await
+            .context("get old build")?;
         let old_build = read_file(old_build).context("read old build")?;
-        let new_build = self.get_build(to.clone()).context("get new build")?;
+        let new_build = self.get_build(to.clone()).await.context("get new build")?;
         let new_build = read_file(new_build).context("read new build")?;
 
         let path_name = Patch::new(from.clone(), to.clone());
@@ -126,7 +133,21 @@ impl Index {
         Ok(())
     }
 
-    pub fn get_patch(&mut self, from: Version, to: Version) -> Result<Entry> {
+    async fn get_local_file(&self, path: &str) -> Result<Entry> {
+        let newly_local_build = self
+            .local
+            .get_file(&path)
+            .await
+            .context("fetch newly added local build");
+
+        match newly_local_build {
+            Ok(FileEntry::InFilesystem(local)) => Ok(local),
+            Ok(_) => unreachable!("local storage always returns local files"),
+            Err(e) => Err(e).context("get local build"),
+        }
+    }
+
+    pub async fn get_patch(&mut self, from: Version, to: Version) -> Result<Entry> {
         anyhow::ensure!(
             self.patch_graph.has_patch(from.clone(), to.clone()),
             "patch `{:?}` unknown",
@@ -134,27 +155,27 @@ impl Index {
 
         let patch = Patch::new(from, to);
         let patch_name = patch.to_string() + ".zst";
-        match self.local.get_file(&patch_name) {
-            Ok(local_file) => return Ok(local_file),
+        match self.get_local_file(&patch_name).await {
+            Ok(local) => return Ok(local),
             Err(e) => log::debug!("could not get local patch {:?}: {}", patch, e),
         }
 
         let remote_entry = self
             .remote
             .get_file(&patch_name)
+            .await
             .with_context(|| format!("can't find `{}` either locally or remotely", patch))?;
 
-        self.add_patch(&remote_entry.path)
+        self.add_patch(&remote_entry)
             .context("copy remote entry to local storage")?;
-        let newly_local_build = self
-            .local
-            .get_file(&patch_name)
-            .context("fetch newly added local build")?;
-        Ok(newly_local_build)
+
+        self.get_local_file(&patch_name)
+            .await
+            .context("fetch newly added local path")
     }
 
     /// Upgrade from one version to the next
-    pub fn upgrade_to_build(&mut self, from: Version, to: Version) -> Result<Entry> {
+    pub async fn upgrade_to_build(&mut self, from: Version, to: Version) -> Result<Entry> {
         anyhow::ensure!(
             self.patch_graph.has_build(from.clone()),
             "build `{:?}` unknown",
@@ -179,25 +200,28 @@ impl Index {
 
                 for patch in needed_patches {
                     self.add_build_from_patch(&patch)
+                        .await
                         .with_context(|| format!("add build from patch `{:?}`", patch))?;
                 }
 
-                let local_build = self.get_build(to).context("fetch just added build")?;
+                let local_build = self.get_build(to).await.context("fetch just added build")?;
                 Ok(local_build)
             }
             UpgradePath::InstallBuild(_build) => {
-                let local_build = self.get_build(to).context("install fresh build")?;
+                let local_build = self.get_build(to).await.context("install fresh build")?;
                 Ok(local_build)
             }
         }
     }
 
-    fn add_build_from_patch(&mut self, patch: &Patch) -> Result<Entry> {
+    async fn add_build_from_patch(&mut self, patch: &Patch) -> Result<Entry> {
         let patch_file = self
             .get_patch(patch.from.clone(), patch.to.clone())
+            .await
             .context("fetch patch")?;
         let source_build = self
             .get_build(patch.from.clone())
+            .await
             .context("fetch source build")?;
 
         let build_temp_name = format!("tmp.{}.tar.zst", patch.to);
@@ -237,7 +261,7 @@ impl Index {
     }
 
     /// Get build (adds to local cache if not present)
-    pub fn get_build(&mut self, version: Version) -> Result<Entry> {
+    pub async fn get_build(&mut self, version: Version) -> Result<Entry> {
         anyhow::ensure!(
             self.patch_graph.has_build(version.clone()),
             "build `{:?}` unknown",
@@ -245,49 +269,62 @@ impl Index {
         );
 
         let build_path = paths::build_path_from_version(version.clone())?;
-        match self.local.get_file(&build_path) {
-            Ok(local_file) => return Ok(local_file),
-            Err(e) => log::debug!("could not get local build for {}: {}", version.as_str(), e),
+        match self.get_local_file(&build_path).await {
+            Ok(local) => return Ok(local),
+            Err(e) => log::debug!("could not get local patch {:?}: {}", build_path, e),
         }
 
-        let remote_entry = self.remote.get_file(&build_path).with_context(|| {
+        let remote_entry = self.remote.get_file(&build_path).await.with_context(|| {
             format!(
                 "can't find `{}` either locally or remotely",
                 version.as_str()
             )
         })?;
 
-        self.add_build(&remote_entry.path)
+        self.add_build(&remote_entry)
             .context("copy remote entry to local storage")?;
-        let newly_local_build = self
-            .local
-            .get_file(&build_path)
-            .context("fetch newly added local build")?;
-        Ok(newly_local_build)
+        self.get_local_file(&build_path)
+            .await
+            .context("fetch newly added local build")
     }
 
     /// Add build to graph and copy it into index's root directory
-    pub(crate) fn add_build(&mut self, path: impl AsRef<Path>) -> Result<Entry> {
-        let path = path.as_ref();
-        let path = path
-            .canonicalize()
-            .with_context(|| format!("canonicalize {}", path.display()))?;
-
+    pub(crate) fn add_build(&mut self, file: &FileEntry) -> Result<Entry> {
         let local = self
             .local
             .local_path()
             .context("add_build can only write to local storage right now")?;
 
-        anyhow::ensure!(
-            !path.starts_with(&local),
-            "asked to add build from same directory it would be written to"
-        );
+        let path = match file {
+            FileEntry::InFilesystem(entry) => {
+                let path = Path::new(&entry.path);
+                anyhow::ensure!(
+                    !path.starts_with(&local),
+                    "asked to add patch from same directory it would be written to"
+                );
+                path.canonicalize()
+                    .with_context(|| format!("canonicalize {}", path.display()))?
+            }
+            FileEntry::Inline(entry, ..) => Path::new(&entry.path).to_path_buf(),
+        };
 
         let file_name = paths::file_name(&path)?;
         let version: Version = file_name.parse()?;
         let new_path = local.join(format!("{}.tar.zst", version.as_str()));
-        fs::copy(&path, &new_path)
-            .with_context(|| format!("copy `{}` to `{}`", path.display(), new_path.display()))?;
+
+        match file {
+            FileEntry::InFilesystem(entry) => {
+                fs::copy(&path, &new_path).with_context(|| {
+                    format!("copy `{}` to `{}`", path.display(), new_path.display())
+                })?;
+            }
+            FileEntry::Inline(_, content) => {
+                let new = File::create(&new_path)
+                    .with_context(|| format!("create `{}`", path.display()))?;
+                let mut new = BufWriter::new(new);
+                new.write_all(&content).context("write content of file")?;
+            }
+        };
 
         let entry = Entry::from_path(&new_path, self.local.clone())
             .context("create entry for new build file")?;
@@ -301,27 +338,41 @@ impl Index {
     /// Add build to graph and copy it into index's root directory
     ///
     /// TODO: Refactor this and add_build to be the same generic method
-    pub(crate) fn add_patch(&mut self, path: impl AsRef<Path>) -> Result<()> {
-        let path = path.as_ref();
-        let path = path
-            .canonicalize()
-            .with_context(|| format!("canonicalize {}", path.display()))?;
-
+    pub(crate) fn add_patch(&mut self, file: &FileEntry) -> Result<()> {
         let local = self
             .local
             .local_path()
             .context("add_patch can only write to local storage right now")?;
-
-        anyhow::ensure!(
-            !path.starts_with(&local),
-            "asked to add patch from same directory it would be written to"
-        );
+        let path = match file {
+            FileEntry::InFilesystem(entry) => {
+                let path = Path::new(&entry.path);
+                anyhow::ensure!(
+                    !path.starts_with(&local),
+                    "asked to add patch from same directory it would be written to"
+                );
+                path.canonicalize()
+                    .with_context(|| format!("canonicalize {}", path.display()))?
+            }
+            FileEntry::Inline(entry, ..) => Path::new(&entry.path).to_path_buf(),
+        };
 
         let (from, to) = paths::patch_versions_from_path(&path)?;
         let patch = Patch::new(from.clone(), to.clone());
         let new_path = local.join(patch.to_string());
-        fs::copy(&path, &new_path)
-            .with_context(|| format!("copy `{}` to `{}`", path.display(), new_path.display()))?;
+
+        match file {
+            FileEntry::InFilesystem(entry) => {
+                fs::copy(&path, &new_path).with_context(|| {
+                    format!("copy `{}` to `{}`", path.display(), new_path.display())
+                })?;
+            }
+            FileEntry::Inline(_, content) => {
+                let new = File::create(&new_path)
+                    .with_context(|| format!("create `{}`", path.display()))?;
+                let mut new = BufWriter::new(new);
+                new.write_all(&content).context("write content of file")?;
+            }
+        };
 
         let entry = Entry::from_path(&new_path, self.local.clone())
             .context("create entry for new build file")?;
@@ -346,8 +397,8 @@ mod tests {
     use std::convert::TryInto;
 
     // TODO: Add same but with one the builds only available on remote
-    #[test]
-    fn create_patch() -> Result<()> {
+    #[tokio::test]
+    async fn create_patch() -> Result<()> {
         let local_dir = tempdir()?;
         let remote_dir = tempdir()?;
 
@@ -356,36 +407,45 @@ mod tests {
         let _build2 = random_file(local_dir.path().join("build2.tar.zst"))?;
         let _build3 = random_file(local_dir.path().join("build3.tar.zst"))?;
 
-        let mut index = Index::new(local_dir.path(), remote_dir.path().try_into()?)?;
+        let mut index = Index::new(local_dir.path(), remote_dir.path().try_into()?).await?;
 
-        index.calculate_patch("build2".parse()?, "build3".parse()?)?;
+        index
+            .calculate_patch("build2".parse()?, "build3".parse()?)
+            .await?;
 
-        index.get_patch("build2".parse()?, "build3".parse()?)?;
+        index
+            .get_patch("build2".parse()?, "build3".parse()?)
+            .await?;
 
         Ok(())
     }
 
-    #[test]
-    fn generate_patches() -> Result<()> {
+    #[tokio::test]
+    async fn generate_patches() -> Result<()> {
         let dir = test_dir(&["1.tar.zst", "2.tar.zst", "1-2.patch.zst"])?;
         let remote_dir = test_dir(&["3.tar.zst"])?;
 
-        let mut index = dbg!(Index::new(&dir, remote_dir.path().try_into()?,)?);
-        index.add_build(&remote_dir.path().join("3.tar.zst"))?;
+        let mut index = dbg!(Index::new(&dir, remote_dir.path().try_into()?,).await?);
+        let build1 = FileEntry::InFilesystem(Entry::from_path(
+            remote_dir.path().join("3.tar.zst"),
+            index.local.clone(),
+        )?);
+        index.add_build(&build1)?;
 
         assert!(
-            index.get_build("3".parse()?).is_ok(),
+            index.get_build("3".parse()?).await.is_ok(),
             "didn't add build to index {:?}",
             index
         );
 
         index
             .calculate_patch("2".parse()?, "3".parse()?)
+            .await
             .context("calc patches")?;
 
         dbg!(&index);
 
-        index.get_patch("2".parse()?, "3".parse()?).unwrap();
+        index.get_patch("2".parse()?, "3".parse()?).await?;
 
         Ok(())
     }

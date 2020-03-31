@@ -23,7 +23,11 @@ tar = "0.4.26"
 walkdir = "2.3.1"
 smol_str = "0.1.15"
 env_logger = "0.7.1"
-# rusoto_s3 = { version = "0.43.0-beta.1", features = ["rustls"], default-features = false }
+
+rusoto_core = { version = "0.43.0", features = ["rustls"], default-features = false }
+rusoto_s3 = { version = "0.43.0", features = ["rustls"], default-features = false }
+
+tokio = { version = "0.2", features = ["rt-threaded", "io-util"] }
 
 [dev-dependencies]
 tempfile = "3.1.0"
