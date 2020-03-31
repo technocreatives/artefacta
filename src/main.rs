@@ -35,6 +35,7 @@ enum Command {
         #[structopt(long = "upload")]
         upload: bool,
     },
+    Debug,
 }
 
 #[tokio::main]
@@ -61,6 +62,9 @@ async fn main() -> Result<()> {
         .await
         .context("open artifact store")?;
     match args.cmd {
+        Command::Debug => {
+            dbg!(index);
+        }
         Command::Install {
             version: target_version,
         } => {
@@ -85,6 +89,10 @@ async fn main() -> Result<()> {
             use std::os::unix::fs::symlink;
             #[cfg(windows)]
             use std::os::windows::fs::symlink_file as symlink;
+
+            if current.exists() {
+                fs::remove_file(&current).context("clear old `current` symlink")?;
+            }
 
             symlink(&target_build.path, &current).with_context(|| {
                 format!(

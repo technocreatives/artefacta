@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
-use rusoto_core::{Region, RusotoError};
+use rusoto_core::Region;
 use rusoto_s3::S3Client;
-use std::{collections::HashMap, convert::TryFrom};
+use std::convert::TryFrom;
 use url::Url;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -9,7 +9,23 @@ pub struct Bucket {
     pub endpoint: String,
     pub bucket: String,
     pub path: String,
-    key: String,
+}
+
+impl Bucket {
+    /// Get S3 key for file path.
+    ///
+    /// Takes into account the root path in the bucket as well as normalizes the
+    /// path.
+    pub fn key_for(&self, path: &str) -> String {
+        let mut root = self
+            .path
+            .trim_start_matches('/')
+            .trim_end_matches('/')
+            .to_owned();
+        root.push_str("/");
+        root.push_str(path);
+        root
+    }
 }
 
 impl<'a> TryFrom<&'a Url> for Bucket {
@@ -28,24 +44,17 @@ impl<'a> TryFrom<&'a Url> for Bucket {
 
         let path = url.path().to_owned();
 
-        let params: HashMap<_, _> = url.query_pairs().collect();
-        let key = params
-            .get("key")
-            .context("S3 access key not present in URI")?
-            .to_string();
-
         Ok(Bucket {
             endpoint,
             bucket,
             path,
-            key,
         })
     }
 }
 
 #[test]
 fn bucket_config_from_url() {
-    let url = Url::parse("s3://nevs-artefacts.ams3.digitaloceanspaces.com/test?key=42").unwrap();
+    let url = Url::parse("s3://nevs-artefacts.ams3.digitaloceanspaces.com/test").unwrap();
     let bucket = Bucket::try_from(&url).unwrap();
     assert_eq!(
         bucket,
@@ -53,7 +62,6 @@ fn bucket_config_from_url() {
             endpoint: "ams3.digitaloceanspaces.com".into(),
             bucket: "nevs-artefacts".into(),
             path: "/test".into(),
-            key: "42".into(),
         }
     );
 }
