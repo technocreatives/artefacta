@@ -27,11 +27,25 @@ jobs:
       uses: actions/checkout@v2
 
     - name: Install Rust
+      if: "!startsWith(matrix.os, 'ubuntu')"
       uses: actions-rs/toolchain@v1
       with:
         toolchain: ${{ env.RUST_VERSION }}
         profile: minimal
         override: true
+
+    - name: Install Rust toolchain on Linux
+      if: startsWith(matrix.os, 'ubuntu')
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: ${{ env.RUST_VERSION }}
+        target: x86_64-unknown-linux-musl
+        profile: minimal
+        override: true
+    - name: Install MUSL tooling on Linux
+      if: startsWith(matrix.os, 'ubuntu')
+      run: |
+        sudo apt install -y musl musl-tools
 
     - name: Build
       uses: actions-rs/cargo@v1
@@ -44,28 +58,28 @@ jobs:
       if: startsWith(matrix.os, 'ubuntu')
       run: |
         mkdir -pv dist
-        cp target/release/${{ secrets.BIN_NAME }} dist/
+        cp target/release/${{ env.BIN_NAME }} dist/
         cd dist
-        strip ${{ secrets.BIN_NAME }}
-        tar -caf ${{ secrets.BIN_NAME }}.tar.xz ${{ secrets.BIN_NAME }}
+        strip ${{ env.BIN_NAME }}
+        tar -caf ${{ env.BIN_NAME }}.tar.xz ${{ env.BIN_NAME }}
     - name: collect artifact on macOS
       if: startsWith(matrix.os, 'macos')
       run: |
         mkdir -pv dist
-        cp target/release/${{ secrets.BIN_NAME }} dist/
+        cp target/release/${{ env.BIN_NAME }} dist/
         cd dist
-        strip ${{ secrets.BIN_NAME }}
-        tar -caf ${{ secrets.BIN_NAME }}.tar.xz ${{ secrets.BIN_NAME }}
+        strip ${{ env.BIN_NAME }}
+        tar -caf ${{ env.BIN_NAME }}.tar.xz ${{ env.BIN_NAME }}
     - name: collect artifact on Windows
       if: startsWith(matrix.os, 'windows')
       run: |
         mkdir dist
-        cp target\release\${{ secrets.BIN_NAME }}.exe dist\
+        cp target\release\${{ env.BIN_NAME }}.exe dist\
         cd dist
-        7z a -ttar -so -an ${{ secrets.BIN_NAME }}.exe | 7z a -txz -mx9 -si ${{ secrets.BIN_NAME }}.tar.xz
+        7z a -ttar -so -an ${{ env.BIN_NAME }}.exe | 7z a -txz -mx9 -si ${{ env.BIN_NAME }}.tar.xz
     - uses: actions/upload-artifact@v1
       with:
-        name: ${{ secrets.BIN_NAME }}-${{ matrix.os }}
+        name: ${{ env.BIN_NAME }}-${{ matrix.os }}
         path: dist
   release:
     needs: build
@@ -73,19 +87,19 @@ jobs:
     steps:
       - uses: actions/checkout@v1
       - name: Get Package Version
-        run: echo ::set-env name=PACKAGE_VERSION::$(cargo metadata --no-deps --format-version=1 | jq -r '.packages[] | select(.name == "${{ secrets.BIN_NAME }}") | .version')
+        run: echo ::set-env name=PACKAGE_VERSION::$(cargo metadata --no-deps --format-version=1 | jq -r '.packages[] | select(.name == "${{ env.BIN_NAME }}") | .version')
       - name: Download Linux Binary
         uses: actions/download-artifact@v1
         with:
-          name: ${{ secrets.BIN_NAME }}-ubuntu-latest
+          name: ${{ env.BIN_NAME }}-ubuntu-latest
       - name: Download Windows Binary
         uses: actions/download-artifact@v1
         with:
-          name: ${{ secrets.BIN_NAME }}-windows-latest
+          name: ${{ env.BIN_NAME }}-windows-latest
       - name: Download macOS Binary
         uses: actions/download-artifact@v1
         with:
-          name: ${{ secrets.BIN_NAME }}-macOS-latest
+          name: ${{ env.BIN_NAME }}-macOS-latest
 
       - name: Create Release
         id: create_release
@@ -103,8 +117,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./${{ secrets.BIN_NAME }}-ubuntu-latest/${{ secrets.BIN_NAME }}.tar.xz
-          asset_name: ${{ secrets.BIN_NAME }}_${{ env.PACKAGE_VERSION }}_linux_amd64.tar.xz
+          asset_path: ./${{ env.BIN_NAME }}-ubuntu-latest/${{ env.BIN_NAME }}.tar.xz
+          asset_name: ${{ env.BIN_NAME }}_${{ env.PACKAGE_VERSION }}_linux_amd64.tar.xz
           asset_content_type: application/octet-stream
       - name: Upload artifact Windows
         uses: actions/upload-release-asset@v1
@@ -112,8 +126,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./${{ secrets.BIN_NAME }}-windows-latest/${{ secrets.BIN_NAME }}.tar.xz
-          asset_name: ${{ secrets.BIN_NAME }}_${{ env.PACKAGE_VERSION }}_windows_amd64.tar.xz
+          asset_path: ./${{ env.BIN_NAME }}-windows-latest/${{ env.BIN_NAME }}.tar.xz
+          asset_name: ${{ env.BIN_NAME }}_${{ env.PACKAGE_VERSION }}_windows_amd64.tar.xz
           asset_content_type: application/octet-stream
       - name: Upload artifact macOS
         uses: actions/upload-release-asset@v1
@@ -121,6 +135,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./${{ secrets.BIN_NAME }}-macOS-latest/${{ secrets.BIN_NAME }}.tar.xz
-          asset_name: ${{ secrets.BIN_NAME }}_${{ env.PACKAGE_VERSION }}_macos_amd64.tar.xz
+          asset_path: ./${{ env.BIN_NAME }}-macOS-latest/${{ env.BIN_NAME }}.tar.xz
+          asset_name: ${{ env.BIN_NAME }}_${{ env.PACKAGE_VERSION }}_macos_amd64.tar.xz
           asset_content_type: application/octet-stream
