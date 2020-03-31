@@ -77,6 +77,12 @@ async fn main() -> Result<()> {
                         current_version,
                         curent_path.display()
                     );
+
+                    if current_version == target_version {
+                        log::info!("version `{}` already installed", target_version);
+                        return Ok(());
+                    }
+
                     index
                         .upgrade_to_build(current_version, target_version.clone())
                         .await
