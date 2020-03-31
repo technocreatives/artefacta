@@ -288,6 +288,13 @@ impl Index {
             .context("fetch newly added local build")
     }
 
+    pub fn add_local_build(&mut self, path: impl AsRef<Path>) -> Result<Entry> {
+        let entry = Entry::from_path(path.as_ref(), self.local.clone())
+            .context("local build file as entry")?;
+        self.add_build(&FileEntry::InFilesystem(entry))
+            .context("add local build file")
+    }
+
     /// Add build to graph and copy it into index's root directory
     pub(crate) fn add_build(&mut self, file: &FileEntry) -> Result<Entry> {
         let local = self
@@ -385,7 +392,7 @@ impl Index {
 
     // Fetch current state from S3 and upload all missing files (i.e. new builds
     // and patches)
-    pub fn push(&self) -> Result<()> {
+    pub async fn push(&self) -> Result<()> {
         todo!()
     }
 }

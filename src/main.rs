@@ -30,7 +30,7 @@ enum Command {
     // TODO: Add option for calculating patches
     Add {
         /// Version of build
-        version: Version,
+        path: PathBuf,
         /// Upload to remote storage
         #[structopt(long = "upload")]
         upload: bool,
@@ -102,7 +102,15 @@ async fn main() -> Result<()> {
                 )
             })?;
         }
-        Command::Add { .. } => todo!("add add"),
+        Command::Add { path, upload } => {
+            index
+                .add_local_build(&path)
+                .with_context(|| format!("add `{}` as new build", path.display()))?;
+
+            if upload {
+                index.push().await.context("sync local changes to remote")?;
+            }
+        }
     }
 
     Ok(())
