@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
-use rusoto_core::{Region, RusotoError};
+use rusoto_core::Region;
 use rusoto_s3::S3Client;
-use std::{collections::HashMap, convert::TryFrom};
+use std::convert::TryFrom;
 use url::Url;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

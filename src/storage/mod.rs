@@ -1,4 +1,4 @@
-use crate::paths::{self, path_as_string};
+use crate::paths::path_as_string;
 use anyhow::{Context, Result};
 pub use std::{
     convert::{TryFrom, TryInto},
@@ -189,7 +189,7 @@ impl Storage {
                     .with_context(|| format!("Couldn't get object with path `{}`", key))?;
 
                 // TODO: Check this. Checksums are in format `{md5}[-{parts}]`.
-                let checksum = result.e_tag.context("object has no checksum")?;
+                let _checksum = result.e_tag.context("object has no checksum")?;
 
                 let mut stream = result
                     .body
@@ -223,7 +223,7 @@ pub enum File {
 }
 
 impl File {
-    pub fn copy_to_local(self, storage: Storage) -> Result<Self> {
+    pub fn copy_to_local(self, _storage: Storage) -> Result<Self> {
         todo!()
     }
 }
