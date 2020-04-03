@@ -74,6 +74,7 @@ jobs:
         args: --all
         toolchain: ${{ env.RUST_VERSION }}
     - name: Tests
+      if: startsWith(matrix.os, 'ubuntu')
       uses: actions-rs/cargo@v1
       with:
         command: test
