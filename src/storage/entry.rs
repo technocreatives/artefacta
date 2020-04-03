@@ -1,8 +1,8 @@
 use crate::{paths, Storage};
 use anyhow::{Context, Result};
-use std::path::Path;
+use std::{fmt, path::Path};
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Entry {
     pub storage: Storage,
     pub path: String,
@@ -27,5 +27,22 @@ impl Entry {
             path: paths::path_as_string(path)?,
             size,
         })
+    }
+}
+
+impl fmt::Debug for Entry {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use humansize::{file_size_opts as options, FileSize};
+
+        f.debug_tuple("Entry")
+            .field(&self.storage)
+            .field(&self.path)
+            .field(&format_args!(
+                "{}",
+                self.size
+                    .file_size(options::BINARY)
+                    .expect("never negative")
+            ))
+            .finish()
     }
 }

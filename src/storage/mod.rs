@@ -296,7 +296,7 @@ impl Storage {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum File {
     InFilesystem(Entry),
     Inline(Entry, Arc<[u8]>),
@@ -305,5 +305,18 @@ pub enum File {
 impl File {
     pub fn copy_to_local(self, _storage: Storage) -> Result<Self> {
         todo!()
+    }
+}
+
+impl fmt::Debug for File {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            File::InFilesystem(e) => f.debug_tuple("File").field(e).finish(),
+            File::Inline(e, _) => f
+                .debug_tuple("InlineFile")
+                .field(e)
+                .field(&format_args!("[bytes]"))
+                .finish(),
+        }
     }
 }
