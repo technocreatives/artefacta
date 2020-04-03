@@ -1,12 +1,18 @@
 [package]
 name = "artefacta"
-version = "0.0.1"
+version = "0.0.2"
 authors = ["Pascal Hertleif <pascal@technocreatives.com>"]
 edition = "2018"
 
 [dependencies]
 anyhow = "1.0.26"
 log = "0.4.8"
+humansize = "1.1.0"
+env_logger = "0.7.1"
+
+structopt = "0.3.11"
+color-backtrace = "0.3.0"
+pretty_env_logger = "0.4.0"
 
 petgraph = "0.5.0"
 
@@ -14,20 +20,18 @@ bidiff = "0.1.0"
 bipatch = "0.1.0"
 zstd = "0.5.1"
 
-structopt = "0.3.11"
-color-backtrace = "0.3.0"
-pretty_env_logger = "0.4.0"
-
-url = "2.1.1"
 tar = "0.4.26"
 walkdir = "2.3.1"
 smol_str = "0.1.15"
-env_logger = "0.7.1"
 
+url = "2.1.1"
 rusoto_core = { version = "0.43.0", features = ["rustls"], default-features = false }
 rusoto_s3 = { version = "0.43.0", features = ["rustls"], default-features = false }
+base64 = "0.12.0"
+md5 = "0.7.0"
 
 tokio = { version = "0.2", features = ["rt-threaded", "io-util"] }
+futures = "0.3.4"
 
 [dev-dependencies]
 tempfile = "3.1.0"

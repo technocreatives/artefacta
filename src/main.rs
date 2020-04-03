@@ -30,10 +30,13 @@ enum Command {
     // TODO: Add option for calculating patches
     Add {
         /// Version of build
-        version: Version,
+        path: PathBuf,
         /// Upload to remote storage
         #[structopt(long = "upload")]
         upload: bool,
+        /// Upload to remote storage
+        #[structopt(long = "calc-patch-from")]
+        calculate_patch_from: Option<Version>,
     },
     Debug,
 }
@@ -44,18 +47,15 @@ async fn main() -> Result<()> {
 
     let args = Cli::from_args();
 
-    pretty_env_logger::formatted_timed_builder()
-        .filter(None, log::LevelFilter::Info)
-        .filter(
-            Some("artefacta"),
-            if args.verbose {
-                log::LevelFilter::Debug
-            } else {
-                log::LevelFilter::Info
-            },
-        )
-        .target(env_logger::Target::Stderr)
-        .init();
+    let mut log = pretty_env_logger::formatted_timed_builder();
+    log.target(env_logger::Target::Stderr);
+    if args.verbose {
+        log.filter(None, log::LevelFilter::Info)
+            .filter(Some("artefacta"), log::LevelFilter::Debug)
+            .init();
+    } else {
+        log.init();
+    };
 
     log::debug!("{:?}", args);
     let mut index = ArtefactIndex::new(&args.local_store, args.remote_store.clone())
@@ -72,18 +72,30 @@ async fn main() -> Result<()> {
             let target_build = match fs::read_link(&current) {
                 Ok(curent_path) => {
                     let current_version = paths::build_version_from_path(&curent_path)?;
+                    log::debug!(
+                        "identified version `{}` from path `{}`",
+                        current_version,
+                        curent_path.display()
+                    );
+
+                    if current_version == target_version {
+                        log::info!("version `{}` already installed", target_version);
+                        return Ok(());
+                    }
+
                     index
-                        .upgrade_to_build(current_version, target_version)
+                        .upgrade_to_build(current_version, target_version.clone())
                         .await
                         .context("get build")?
                 }
                 Err(e) => {
                     log::debug!("could not read `current` symlink: {}", e);
-                    index.get_build(target_version).await.context("get build")?
+                    index
+                        .get_build(target_version.clone())
+                        .await
+                        .context("get build")?
                 }
             };
-
-            dbg!(&target_build);
 
             #[cfg(unix)]
             use std::os::unix::fs::symlink;
@@ -101,8 +113,40 @@ async fn main() -> Result<()> {
                     current.display()
                 )
             })?;
+            log::info!(
+                "successfully installed `{}` as `{}`",
+                target_version,
+                current.display()
+            );
         }
-        Command::Add { .. } => todo!("add add"),
+        Command::Add {
+            path,
+            upload,
+            calculate_patch_from,
+        } => {
+            let entry = index
+                .add_local_build(&path)
+                .await
+                .with_context(|| format!("add `{}` as new build", path.display()))?;
+            log::info!(
+                "successfully added `{}` as `{:?}` to local index",
+                path.display(),
+                entry
+            );
+
+            if let Some(old_build) = calculate_patch_from {
+                let new_build: Version = paths::file_name(&entry.path)?.parse()?;
+                index
+                    .calculate_patch(old_build, new_build)
+                    .await
+                    .context("create patch for new build")?;
+            }
+
+            if upload {
+                log::debug!("uploading new local artefacts to remote");
+                index.push().await.context("sync local changes to remote")?;
+            }
+        }
     }
 
     Ok(())

@@ -9,7 +9,6 @@ use std::{
     io::{self, BufReader, Read},
     path::Path,
 };
-
 use zstd::stream::write::Encoder as ZstdEncoder;
 
 mod build;
@@ -19,12 +18,11 @@ pub use patch::Patch;
 mod graph;
 pub use graph::{Location, PatchGraph, UpgradePath};
 mod version;
-use io::{BufWriter, Write};
 pub use version::Version;
 
 /// Artefact index
 ///
-/// Contains local and remote storage as well as graph build from the current
+/// Contains local and remote storage as well as graph built from the current
 /// contents of the storages.
 ///
 /// This is the main entry point for interacting with any build and patch files.
@@ -88,6 +86,8 @@ impl Index {
             );
             return Ok(());
         }
+
+        log::debug!("calculate path from `{}` to `{}`", from, to);
 
         let local = self
             .local
@@ -167,6 +167,7 @@ impl Index {
             .with_context(|| format!("can't find `{}` either locally or remotely", patch))?;
 
         self.add_patch(&remote_entry)
+            .await
             .context("copy remote entry to local storage")?;
 
         self.get_local_file(&patch_name)
@@ -176,6 +177,7 @@ impl Index {
 
     /// Upgrade from one version to the next
     pub async fn upgrade_to_build(&mut self, from: Version, to: Version) -> Result<Entry> {
+        log::debug!("searching for upgrade path from `{}` to `{}`", from, to);
         anyhow::ensure!(
             self.patch_graph.has_build(from.clone()),
             "build `{:?}` unknown",
@@ -193,10 +195,15 @@ impl Index {
             .with_context(|| format!("can't find upgrade path from `{:?}` to `{:?}", from, to))?
         {
             UpgradePath::ApplyPatches(patches) => {
+                log::debug!("found upgrade path via patches: {:?}", patches);
                 let needed_patches = patches
                     .into_iter()
                     .skip_while(|patch| self.patch_graph.has_local_build(patch.to.clone()))
                     .collect::<Vec<Patch>>();
+                log::debug!(
+                    "using already existing local builds, we need to fetch: {:?}",
+                    needed_patches
+                );
 
                 for patch in needed_patches {
                     self.add_build_from_patch(&patch)
@@ -205,9 +212,11 @@ impl Index {
                 }
 
                 let local_build = self.get_build(to).await.context("fetch just added build")?;
+                log::debug!("arrived at final build: {:?}", local_build);
                 Ok(local_build)
             }
-            UpgradePath::InstallBuild(_build) => {
+            UpgradePath::InstallBuild(build) => {
+                log::debug!("found upgrade path installing build `{:?}`", build);
                 let local_build = self.get_build(to).await.context("install fresh build")?;
                 Ok(local_build)
             }
@@ -248,6 +257,11 @@ impl Index {
 
         let entry = Entry::from_path(&build_real_path, self.local.clone())
             .context("create entry for new build file")?;
+        log::debug!(
+            "created new build `{:?}` from patch `{:?}`",
+            entry,
+            patch_file
+        );
 
         self.patch_graph
             .add_build(&patch.to, entry.clone(), Location::Local)
@@ -270,8 +284,15 @@ impl Index {
 
         let build_path = paths::build_path_from_version(version.clone())?;
         match self.get_local_file(&build_path).await {
-            Ok(local) => return Ok(local),
-            Err(e) => log::debug!("could not get local patch {:?}: {}", build_path, e),
+            Ok(local) => {
+                log::debug!("using local file for build `{:?}`", local);
+                return Ok(local);
+            }
+            Err(e) => log::debug!(
+                "could not get local patch {:?} ({}), trying remote next",
+                build_path,
+                e
+            ),
         }
 
         let remote_entry = self.remote.get_file(&build_path).await.with_context(|| {
@@ -282,14 +303,23 @@ impl Index {
         })?;
 
         self.add_build(&remote_entry)
+            .await
             .context("copy remote entry to local storage")?;
         self.get_local_file(&build_path)
             .await
             .context("fetch newly added local build")
     }
 
+    pub async fn add_local_build(&mut self, path: impl AsRef<Path>) -> Result<Entry> {
+        let entry = Entry::from_path(path.as_ref(), self.local.clone())
+            .context("local build file as entry")?;
+        self.add_build(&FileEntry::InFilesystem(entry))
+            .await
+            .context("add local build file")
+    }
+
     /// Add build to graph and copy it into index's root directory
-    pub(crate) fn add_build(&mut self, file: &FileEntry) -> Result<Entry> {
+    pub(crate) async fn add_build(&mut self, file: &FileEntry) -> Result<Entry> {
         let local = self
             .local
             .local_path()
@@ -312,22 +342,19 @@ impl Index {
         let version: Version = file_name.parse()?;
         let new_path = local.join(format!("{}.tar.zst", version.as_str()));
 
-        match file {
-            FileEntry::InFilesystem(_entry) => {
-                fs::copy(&path, &new_path).with_context(|| {
-                    format!("copy `{}` to `{}`", path.display(), new_path.display())
-                })?;
-            }
-            FileEntry::Inline(_, content) => {
-                let new = File::create(&new_path)
-                    .with_context(|| format!("create `{}`", path.display()))?;
-                let mut new = BufWriter::new(new);
-                new.write_all(&content).context("write content of file")?;
-            }
-        };
+        self.local
+            .add_file(file, &new_path)
+            .await
+            .context("write build file to local storage")?;
 
         let entry = Entry::from_path(&new_path, self.local.clone())
             .context("create entry for new build file")?;
+
+        anyhow::ensure!(
+            entry.size > 0,
+            "Just added `{}` but its empty (size 0). That's not gonna be useful.",
+            entry.path
+        );
 
         self.patch_graph
             .add_build(&version, entry.clone(), Location::Local)
@@ -338,7 +365,7 @@ impl Index {
     /// Add build to graph and copy it into index's root directory
     ///
     /// TODO: Refactor this and add_build to be the same generic method
-    pub(crate) fn add_patch(&mut self, file: &FileEntry) -> Result<()> {
+    pub(crate) async fn add_patch(&mut self, file: &FileEntry) -> Result<()> {
         let local = self
             .local
             .local_path()
@@ -360,19 +387,10 @@ impl Index {
         let patch = Patch::new(from.clone(), to.clone());
         let new_path = local.join(patch.to_string());
 
-        match file {
-            FileEntry::InFilesystem(_entry) => {
-                fs::copy(&path, &new_path).with_context(|| {
-                    format!("copy `{}` to `{}`", path.display(), new_path.display())
-                })?;
-            }
-            FileEntry::Inline(_, content) => {
-                let new = File::create(&new_path)
-                    .with_context(|| format!("create `{}`", path.display()))?;
-                let mut new = BufWriter::new(new);
-                new.write_all(&content).context("write content of file")?;
-            }
-        };
+        self.local
+            .add_file(file, &new_path)
+            .await
+            .context("write patch file to local storage")?;
 
         let entry = Entry::from_path(&new_path, self.local.clone())
             .context("create entry for new build file")?;
@@ -385,8 +403,68 @@ impl Index {
 
     // Fetch current state from S3 and upload all missing files (i.e. new builds
     // and patches)
-    pub fn push(&self) -> Result<()> {
-        todo!()
+    pub async fn push(&self) -> Result<()> {
+        use futures::stream::{self, StreamExt, TryStreamExt};
+
+        let builds = self
+            .patch_graph
+            .local_only_builds()
+            .into_iter()
+            .map(|b| {
+                if let Some(local) = b.local {
+                    Ok(local)
+                } else {
+                    anyhow::bail!("no local entry in `{:?}`", b)
+                }
+            })
+            .collect::<Result<Vec<Entry>>>()
+            .context("collecting builds to upload")?;
+        log::debug!(
+            "found {} builds locally that are not on remote",
+            builds.len()
+        );
+        let builds = stream::iter(builds);
+
+        let patches = self
+            .patch_graph
+            .local_only_patches()
+            .into_iter()
+            .map(|b| {
+                if let Some(local) = b.local {
+                    Ok(local)
+                } else {
+                    anyhow::bail!("no local entry in `{:?}`", b)
+                }
+            })
+            .collect::<Result<Vec<Entry>>>()
+            .context("collecting patches to upload")?;
+        log::debug!(
+            "found {} patches locally that are not on remote",
+            patches.len()
+        );
+        let patches = stream::iter(patches);
+
+        builds
+            .chain(patches)
+            .map(|x| -> Result<Entry> { Ok(x) }) // necessary for fallible method and type inference
+            .try_for_each_concurrent(3, |entry| async {
+                let s3_key = entry
+                    .path
+                    .rsplit('/')
+                    .next()
+                    .expect("always one item in split")
+                    .to_owned();
+                self.remote
+                    .add_file(&FileEntry::InFilesystem(entry), &s3_key)
+                    .await
+                    .with_context(|| format!("adding `{}`", s3_key))?;
+                log::info!("uploaded `{}`", s3_key);
+                Ok(())
+            })
+            .await
+            .context("uploading missing files to remote")?;
+
+        Ok(())
     }
 }
 
@@ -425,12 +503,12 @@ mod tests {
         let dir = test_dir(&["1.tar.zst", "2.tar.zst", "1-2.patch.zst"])?;
         let remote_dir = test_dir(&["3.tar.zst"])?;
 
-        let mut index = dbg!(Index::new(&dir, remote_dir.path().try_into()?,).await?);
+        let mut index = Index::new(&dir, remote_dir.path().try_into()?).await?;
         let build1 = FileEntry::InFilesystem(Entry::from_path(
             remote_dir.path().join("3.tar.zst"),
             index.local.clone(),
         )?);
-        index.add_build(&build1)?;
+        index.add_build(&build1).await?;
 
         assert!(
             index.get_build("3".parse()?).await.is_ok(),
