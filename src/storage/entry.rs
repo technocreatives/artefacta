@@ -1,5 +1,4 @@
-use super::Storage;
-use crate::paths;
+use crate::{paths, Storage};
 use anyhow::{Context, Result};
 use std::path::Path;
 

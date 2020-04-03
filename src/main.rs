@@ -34,6 +34,9 @@ enum Command {
         /// Upload to remote storage
         #[structopt(long = "upload")]
         upload: bool,
+        /// Upload to remote storage
+        #[structopt(long = "calc-patch-from")]
+        calculate_patch_from: Option<Version>,
     },
     Debug,
 }
@@ -44,18 +47,15 @@ async fn main() -> Result<()> {
 
     let args = Cli::from_args();
 
-    pretty_env_logger::formatted_timed_builder()
-        .filter(None, log::LevelFilter::Info)
-        .filter(
-            Some("artefacta"),
-            if args.verbose {
-                log::LevelFilter::Debug
-            } else {
-                log::LevelFilter::Info
-            },
-        )
-        .target(env_logger::Target::Stderr)
-        .init();
+    let mut log = pretty_env_logger::formatted_timed_builder();
+    log.target(env_logger::Target::Stderr);
+    if args.verbose {
+        log.filter(None, log::LevelFilter::Info)
+            .filter(Some("artefacta"), log::LevelFilter::Debug)
+            .init();
+    } else {
+        log.init();
+    };
 
     log::debug!("{:?}", args);
     let mut index = ArtefactIndex::new(&args.local_store, args.remote_store.clone())
@@ -119,9 +119,14 @@ async fn main() -> Result<()> {
                 current.display()
             );
         }
-        Command::Add { path, upload } => {
+        Command::Add {
+            path,
+            upload,
+            calculate_patch_from,
+        } => {
             let entry = index
                 .add_local_build(&path)
+                .await
                 .with_context(|| format!("add `{}` as new build", path.display()))?;
             log::info!(
                 "successfully added `{}` as `{:?}` to local index",
@@ -129,8 +134,16 @@ async fn main() -> Result<()> {
                 entry
             );
 
+            if let Some(old_build) = calculate_patch_from {
+                let new_build: Version = paths::file_name(&entry.path)?.parse()?;
+                index
+                    .calculate_patch(old_build, new_build)
+                    .await
+                    .context("create patch for new build")?;
+            }
+
             if upload {
-                log::debug!("uploading `{}`…", entry.path);
+                log::debug!("uploading new local artefacts to remote");
                 index.push().await.context("sync local changes to remote")?;
             }
         }

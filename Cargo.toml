@@ -28,6 +28,9 @@ rusoto_core = { version = "0.43.0", features = ["rustls"], default-features = fa
 rusoto_s3 = { version = "0.43.0", features = ["rustls"], default-features = false }
 
 tokio = { version = "0.2", features = ["rt-threaded", "io-util"] }
+md5 = "0.7.0"
+base64 = "0.12.0"
+futures = "0.3.4"
 
 [dev-dependencies]
 tempfile = "3.1.0"

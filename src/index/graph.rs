@@ -1,7 +1,7 @@
 use super::{Build, Patch, Version};
 use crate::{paths, storage::Entry};
 use anyhow::{Context, Result};
-use petgraph::stable_graph::{DefaultIx, EdgeIndex, NodeIndex, StableGraph as Graph};
+use petgraph::graph::{DefaultIx, EdgeIndex, Graph, NodeIndex};
 use std::{collections::HashMap, convert::TryFrom, fs::ReadDir, io::Error as IoError};
 
 /// Graph of builds and upgrade paths using patches
@@ -35,6 +35,9 @@ impl PatchGraph {
 
         log::trace!("Builds: {:?}", builds);
         for entry in builds {
+            if entry.path.ends_with('/') {
+                continue;
+            }
             let version = paths::build_version_from_path(&entry.path)?;
             self.add_build(&version, entry.clone(), location)
                 .with_context(|| format!("add build `{}`", entry.path))?;
@@ -42,6 +45,9 @@ impl PatchGraph {
 
         log::trace!("Patches: {:?}", patches);
         for entry in patches {
+            if entry.path.ends_with('/') {
+                continue;
+            }
             let (from, to) =
                 paths::patch_versions_from_path(&entry.path).context("Patch versions from path")?;
             self.add_patch(&from, &to, entry.clone(), location)
@@ -184,6 +190,26 @@ impl PatchGraph {
             Ok((size, path)) if build_size > size => Ok(UpgradePath::ApplyPatches(path)),
             _ => Ok(UpgradePath::InstallBuild(next_build)),
         }
+    }
+
+    pub(crate) fn local_only_builds(&self) -> Vec<Build> {
+        self.graph
+            .raw_nodes()
+            .iter()
+            .map(|n| &n.weight)
+            .filter(|b| b.remote.is_none())
+            .cloned()
+            .collect()
+    }
+
+    pub(crate) fn local_only_patches(&self) -> Vec<Patch> {
+        self.graph
+            .raw_edges()
+            .iter()
+            .map(|n| &n.weight)
+            .filter(|b| b.remote.is_none())
+            .cloned()
+            .collect()
     }
 }
 

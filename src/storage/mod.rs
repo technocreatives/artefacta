@@ -2,7 +2,9 @@ use crate::paths::path_as_string;
 use anyhow::{Context, Result};
 pub use std::{
     convert::{TryFrom, TryInto},
-    fs::read_dir,
+    fmt,
+    fs::{self, read_dir},
+    io::{BufWriter, Write},
     path::{Path, PathBuf},
     str::FromStr,
     sync::Arc,
@@ -42,9 +44,35 @@ pub use entry::Entry;
 /// assert!(local_dir.is_local());
 /// assert!(local_dir.local_path().is_some());
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Storage {
     inner: Arc<InnerStorage>,
+}
+
+impl fmt::Display for Storage {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self.inner.as_ref() {
+            InnerStorage::Filesystem(root) => write!(f, "filesystem (`{}`)", root.display()),
+            InnerStorage::S3(b) => write!(f, "S3 ({})", b.bucket),
+        }
+    }
+}
+
+impl fmt::Debug for Storage {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self.inner.as_ref() {
+            InnerStorage::Filesystem(root) => {
+                f.debug_tuple("Filesystem").field(root).finish()?;
+            }
+            InnerStorage::S3(b) => {
+                f.debug_tuple("S3")
+                    .field(&b.endpoint)
+                    .field(&b.path)
+                    .finish()?;
+            }
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -102,34 +130,37 @@ impl FromStr for Storage {
 impl Storage {
     pub async fn list_files(&self) -> Result<Vec<Entry>> {
         match self.inner.as_ref() {
-            InnerStorage::Filesystem(path) => read_dir(&path)
+            InnerStorage::Filesystem(path) => Ok(read_dir(&path)
                 .with_context(|| format!("could not read directory `{}`", path.display()))?
-                .map(|entry| {
-                    let entry = entry.context("read file entry")?;
+                .map(|entry| -> Result<_> {
+                    let entry = entry.context("could not read file entry")?;
                     let path = entry.path();
-                    let size = entry
-                        .metadata()
-                        .with_context(|| format!("read metadata of `{}`", path.display()))?
-                        .len();
-                    Ok(Entry {
-                        storage: self.clone(),
-                        path: path_as_string(path)?,
-                        size,
-                    })
+                    let metadata = entry.metadata().with_context(|| {
+                        format!("could not read metadata of `{}`", path.display())
+                    })?;
+
+                    Ok((metadata, path_as_string(path)?))
                 })
-                .collect::<Result<Vec<_>>>()
-                .with_context(|| format!("parse directory content of `{}`", path.display())),
+                .collect::<Result<Vec<_>>>()?
+                .into_iter()
+                .filter(|(metadata, _)| !metadata.file_type().is_symlink())
+                .map(|(metadata, path)| Entry {
+                    storage: self.clone(),
+                    path,
+                    size: metadata.len(),
+                })
+                .collect::<Vec<_>>()),
             InnerStorage::S3(bucket) => {
                 use rusoto_s3::{ListObjectsV2Request, S3Client, S3};
 
-                let list_obj_req = ListObjectsV2Request {
-                    bucket: bucket.bucket.to_owned(),
-                    ..Default::default()
-                };
                 let client: S3Client = bucket.try_into().context("build S3 client")?;
 
                 let res = client
-                    .list_objects_v2(list_obj_req)
+                    .list_objects_v2(ListObjectsV2Request {
+                        bucket: bucket.bucket.to_owned(),
+                        prefix: Some(bucket.path.trim_start_matches('/').to_string()),
+                        ..Default::default()
+                    })
                     .await
                     .context("list files in bucket")?;
                 if res.is_truncated.unwrap_or_default() {
@@ -137,7 +168,7 @@ impl Storage {
                 }
 
                 res.contents
-                    .context("got no entries when listing files")?
+                    .unwrap_or_default()
                     .iter()
                     .map(|obj| {
                         Ok(Entry {
@@ -176,15 +207,14 @@ impl Storage {
                 use tokio::io::AsyncReadExt;
 
                 let key = bucket.key_for(path);
-                let get_req = GetObjectRequest {
-                    bucket: bucket.bucket.to_owned(),
-                    key: key.clone(),
-                    ..Default::default()
-                };
                 let client: S3Client = bucket.try_into().context("build S3 client")?;
 
                 let result = client
-                    .get_object(get_req)
+                    .get_object(GetObjectRequest {
+                        bucket: bucket.bucket.to_owned(),
+                        key: key.clone(),
+                        ..Default::default()
+                    })
                     .await
                     .with_context(|| format!("Couldn't get object with path `{}`", key))?;
 
@@ -213,6 +243,56 @@ impl Storage {
                 Ok(File::Inline(entry, body.into_boxed_slice().into()))
             }
         }
+    }
+
+    pub async fn add_file(&self, file: &File, target: impl AsRef<Path>) -> Result<()> {
+        log::debug!("adding file {:?} to `{}`", file, self);
+
+        match self.inner.as_ref() {
+            InnerStorage::Filesystem(root) => {
+                let new_path = root.join(target.as_ref());
+                match file {
+                    File::InFilesystem(entry) => {
+                        fs::copy(&entry.path, &new_path).with_context(|| {
+                            format!("copy `{}` to `{}`", entry.path, new_path.display())
+                        })?;
+                    }
+                    File::Inline(_, content) => {
+                        let new = fs::File::create(&new_path)
+                            .with_context(|| format!("create `{}`", new_path.display()))?;
+                        let mut new = BufWriter::new(new);
+                        new.write_all(&content).context("write content of file")?;
+                    }
+                };
+            }
+
+            InnerStorage::S3(bucket) => {
+                use rusoto_s3::{PutObjectRequest, S3Client, S3};
+
+                let client: S3Client = bucket.try_into().context("build S3 client")?;
+
+                let content = match file {
+                    File::InFilesystem(entry) => fs::read(&entry.path)
+                        .with_context(|| format!("could not read `{}`", entry.path))?,
+                    File::Inline(_, content) => content.to_vec(),
+                };
+
+                let key = bucket.key_for(&path_as_string(target)?);
+                log::debug!("adding file as `{}`", key);
+                let checksum = md5::compute(&content);
+                client
+                    .put_object(PutObjectRequest {
+                        bucket: bucket.bucket.to_owned(),
+                        key: key.clone(),
+                        content_md5: Some(base64::encode(&*checksum)),
+                        body: Some(content.into()),
+                        ..Default::default()
+                    })
+                    .await
+                    .with_context(|| format!("Failed to upload object `{}` to S3", key))?;
+            }
+        }
+        Ok(())
     }
 }
 
