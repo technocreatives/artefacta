@@ -56,3 +56,28 @@ fn upgrade_to_a_build_already_cached() {
         "symlink points to new build"
     );
 }
+
+#[test]
+fn upgrade_to_new_build_without_patches() {
+    let (local, remote) = init();
+    let (local, remote) = (local.path(), remote.path());
+
+    fs::write(remote.join("build1.tar.zst"), b"foobar").unwrap();
+    fs::write(remote.join("build2.tar.zst"), b"foobarbaz").unwrap();
+
+    // "install" build1
+    fs::copy(remote.join("build1.tar.zst"), local.join("build1.tar.zst")).unwrap();
+    std::os::unix::fs::symlink(local.join("build1.tar.zst"), local.join("current")).unwrap();
+
+    artefacta(local, remote)
+        .args(&["install", "build2"])
+        .assert()
+        .success();
+
+    let current = local.join("current");
+    assert_eq!(
+        local.join("build2.tar.zst"),
+        fs::read_link(&current).unwrap(),
+        "symlink points to new build"
+    );
+}
