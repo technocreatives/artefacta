@@ -7,7 +7,7 @@ pub use std::{
     io::Cursor,
     path::{Path, PathBuf},
 };
-pub use tempfile::tempdir;
+pub use tempfile::{tempdir, TempDir};
 
 pub fn random_file(path: impl AsRef<Path>) -> Result<Vec<u8>> {
     let path = path.as_ref();
