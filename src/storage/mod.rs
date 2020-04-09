@@ -94,7 +94,10 @@ impl<'p> TryFrom<&'p Path> for Storage {
 
     fn try_from(path: &Path) -> Result<Self> {
         anyhow::ensure!(path.exists(), "Path `{}` does not exist", path.display());
-        Ok(InnerStorage::Filesystem(path.to_path_buf()).into())
+        let path = path
+            .canonicalize()
+            .with_context(|| format!("cannot canonicalize path `{}`", path.display()))?;
+        Ok(InnerStorage::Filesystem(path).into())
     }
 }
 
@@ -135,6 +138,9 @@ impl Storage {
                 .map(|entry| -> Result<_> {
                     let entry = entry.context("could not read file entry")?;
                     let path = entry.path();
+                    let path = path.canonicalize().with_context(|| {
+                        format!("cannot canonicalize path `{}`", path.display())
+                    })?;
                     let metadata = entry.metadata().with_context(|| {
                         format!("could not read metadata of `{}`", path.display())
                     })?;
@@ -247,10 +253,21 @@ impl Storage {
 
     pub async fn add_file(&self, file: &File, target: impl AsRef<Path>) -> Result<()> {
         log::debug!("adding file {:?} to `{}`", file, self);
+        let target = target.as_ref();
 
         match self.inner.as_ref() {
             InnerStorage::Filesystem(root) => {
-                let new_path = root.join(target.as_ref());
+                let new_path = if target.is_absolute() {
+                    anyhow::ensure!(
+                        target.starts_with(&root),
+                        "build target path is absolute but not in storage directory"
+                    );
+
+                    target.to_path_buf()
+                } else {
+                    root.join(target)
+                };
+
                 match file {
                     File::InFilesystem(entry) => {
                         fs::copy(&entry.path, &new_path).with_context(|| {

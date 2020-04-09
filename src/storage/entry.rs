@@ -12,6 +12,10 @@ pub struct Entry {
 impl Entry {
     pub fn from_path(path: impl AsRef<Path>, storage: Storage) -> Result<Self> {
         let path = path.as_ref();
+        let path = path
+            .canonicalize()
+            .with_context(|| format!("cannot canonicalize path `{}`", path.display()))?;
+
         let size = path
             .metadata()
             .with_context(|| {

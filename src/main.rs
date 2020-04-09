@@ -124,19 +124,30 @@ async fn main() -> Result<()> {
             use tempfile::tempdir;
             use zstd::stream::write::Encoder as ZstdEncoder;
 
+            let build_path = build
+                .path
+                .canonicalize()
+                .with_context(|| format!("cannot canonicalize path `{}`", build.path.display()))?;
+
             let archive_name = format!("{}.tar.zst", version);
             let tmp = tempdir().context("could not create temporary directory")?;
             let archive_path = tmp.path().join(&archive_name);
 
-            log::debug!(
+            log::info!(
                 "packaging `{}` into `{}`",
-                build.path.display(),
+                build_path.display(),
                 archive_path.display()
             );
-            let mut archive =
-                ZstdEncoder::new(fs::File::create(&archive_path).unwrap(), 3).unwrap();
-            package(&build.path, &mut archive)
+
+            let archive = fs::File::create(&archive_path)
+                .with_context(|| format!("cannot create file `{}`", archive_path.display()))?;
+            let mut archive = ZstdEncoder::new(archive, 3)
+                .with_context(|| format!("cannot create zstd file `{}`", archive_path.display()))?;
+            package(&build_path, &mut archive)
                 .with_context(|| format!("package archive `{}`", archive_path.display()))?;
+            archive
+                .finish()
+                .with_context(|| format!("write zstd archive `{}`", archive_path.display()))?;
 
             let add = AddBuild {
                 path: archive_path,
