@@ -233,7 +233,7 @@ impl Storage {
 
                 let entry = Entry {
                     storage: self.clone(),
-                    path: bucket.path.to_owned(),
+                    path: key.to_owned(),
                     size: result
                         .content_length
                         .map(|s| s as u64)
