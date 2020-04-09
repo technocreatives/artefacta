@@ -19,14 +19,17 @@ pub fn artefacta(local: &Path, remote: &Path) -> Command {
     let mut cmd = Command::cargo_bin("artefacta").unwrap();
     cmd.env("ARTEFACTA_LOCAL_STORE", local);
     cmd.env("ARTEFACTA_REMOTE_STORE", remote);
-    cmd.arg("--verbose");
+    cmd.env("RUST_LOG", "info,artefacta=trace");
+    cmd.timeout(std::time::Duration::from_secs(10));
     cmd
 }
 
 pub fn ls(path: impl AsRef<Path>) {
-    let res = Command::new("ls")
-        .current_dir(path.as_ref())
-        .output()
-        .unwrap();
-    println!("{}", String::from_utf8_lossy(&res.stdout));
+    let path = path.as_ref();
+    let res = Command::new("ls").current_dir(path).output().unwrap();
+    println!(
+        "> ls {}\n{}---",
+        path.display(),
+        String::from_utf8_lossy(&res.stdout)
+    );
 }

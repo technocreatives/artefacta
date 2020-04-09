@@ -352,7 +352,7 @@ impl Index {
 
         anyhow::ensure!(
             entry.size > 0,
-            "Just added `{}` but its empty (size 0). That's not gonna be useful.",
+            "Just added `{}` but it's empty (size 0). That's not gonna be useful.",
             entry.path
         );
 
