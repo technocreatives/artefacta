@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use std::{fs, path::PathBuf};
 use structopt::StructOpt;
 
-use artefacta::{paths, ArtefactIndex, Storage, Version};
+use artefacta::{package, paths, ArtefactIndex, Storage, Version};
 
 #[derive(Debug, StructOpt)]
 struct Cli {
@@ -26,19 +26,29 @@ enum Command {
         /// Version of the build to install
         version: Version,
     },
-    /// Add a new build to local storage
+    /// Add a new build
     // TODO: Add option for calculating patches
-    Add {
-        /// Version of build
-        path: PathBuf,
-        /// Upload to remote storage
-        #[structopt(long = "upload")]
-        upload: bool,
-        /// Upload to remote storage
-        #[structopt(long = "calc-patch-from")]
-        calculate_patch_from: Option<Version>,
+    Add(AddBuild),
+    /// Package a new build and add it
+    AddPackage {
+        /// Version of the build
+        version: Version,
+        #[structopt(flatten)]
+        build: AddBuild,
     },
     Debug,
+}
+
+#[derive(Debug, StructOpt)]
+struct AddBuild {
+    /// Version of build
+    path: PathBuf,
+    /// Upload to remote storage
+    #[structopt(long = "upload")]
+    upload: bool,
+    /// Upload to remote storage
+    #[structopt(long = "calc-patch-from")]
+    calculate_patch_from: Option<Version>,
 }
 
 #[tokio::main]
@@ -119,35 +129,69 @@ async fn main() -> Result<()> {
                 current.display()
             );
         }
-        Command::Add {
-            path,
-            upload,
-            calculate_patch_from,
-        } => {
-            let entry = index
-                .add_local_build(&path)
-                .await
-                .with_context(|| format!("add `{}` as new build", path.display()))?;
-            log::info!(
-                "successfully added `{}` as `{:?}` to local index",
-                path.display(),
-                entry
+        Command::AddPackage { version, build } => {
+            use tempfile::tempdir;
+            use zstd::stream::write::Encoder as ZstdEncoder;
+
+            let archive_name = format!("{}.tar.zst", version);
+            let tmp = tempdir().context("could not create temporary directory")?;
+            let archive_path = tmp.path().join(&archive_name);
+
+            log::debug!(
+                "packaging `{}` into `{}`",
+                build.path.display(),
+                archive_path.display()
             );
+            let mut archive =
+                ZstdEncoder::new(fs::File::create(&archive_path).unwrap(), 3).unwrap();
+            package(&build.path, &mut archive)
+                .with_context(|| format!("package archive `{}`", archive_path.display()))?;
 
-            if let Some(old_build) = calculate_patch_from {
-                let new_build: Version = paths::file_name(&entry.path)?.parse()?;
-                index
-                    .calculate_patch(old_build, new_build)
-                    .await
-                    .context("create patch for new build")?;
-            }
+            let add = AddBuild {
+                path: archive_path,
+                ..build
+            };
+            add.add_to(&mut index)
+                .await
+                .context("could not add new build")?;
 
-            if upload {
-                log::debug!("uploading new local artefacts to remote");
-                index.push().await.context("sync local changes to remote")?;
-            }
+            tmp.close()
+                .context("could not clean up temporary directory")?;
         }
+        Command::Add(add) => add
+            .add_to(&mut index)
+            .await
+            .context("could not add new build")?,
     }
 
     Ok(())
+}
+
+impl AddBuild {
+    async fn add_to(&self, index: &mut ArtefactIndex) -> Result<()> {
+        let entry = index
+            .add_local_build(&self.path)
+            .await
+            .with_context(|| format!("add `{}` as new build", self.path.display()))?;
+        log::info!(
+            "successfully added `{}` as `{:?}` to local index",
+            self.path.display(),
+            entry
+        );
+
+        if let Some(old_build) = self.calculate_patch_from.as_ref() {
+            let new_build: Version = paths::file_name(&entry.path)?.parse()?;
+            index
+                .calculate_patch(old_build.clone(), new_build)
+                .await
+                .context("create patch for new build")?;
+        }
+
+        if self.upload {
+            log::debug!("uploading new local artefacts to remote");
+            index.push().await.context("sync local changes to remote")?;
+        }
+
+        Ok(())
+    }
 }
