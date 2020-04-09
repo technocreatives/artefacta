@@ -56,16 +56,7 @@ async fn main() -> Result<()> {
     color_backtrace::install();
 
     let args = Cli::from_args();
-
-    let mut log = pretty_env_logger::formatted_timed_builder();
-    log.target(env_logger::Target::Stderr);
-    if args.verbose {
-        log.filter(None, log::LevelFilter::Info)
-            .filter(Some("artefacta"), log::LevelFilter::Debug)
-            .init();
-    } else {
-        log.init();
-    };
+    setup_logging(args.verbose);
 
     log::debug!("{:?}", args);
     let mut index = ArtefactIndex::new(&args.local_store, args.remote_store.clone())
@@ -194,4 +185,20 @@ impl AddBuild {
 
         Ok(())
     }
+}
+
+fn setup_logging(verbose: bool) {
+    let mut log = pretty_env_logger::formatted_timed_builder();
+    log.target(env_logger::Target::Stderr);
+
+    if verbose {
+        log.filter(None, log::LevelFilter::Info)
+            .filter(Some("artefacta"), log::LevelFilter::Debug);
+    };
+
+    if let Ok(s) = std::env::var("RUST_LOG") {
+        log.parse_filters(&s);
+    }
+
+    log.init();
 }
