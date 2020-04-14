@@ -81,3 +81,24 @@ fn upgrade_to_new_build_without_patches() {
         "symlink points to new build"
     );
 }
+
+#[test]
+fn size_is_different_between_remote_and_local() {
+    let (local, remote) = init();
+    let (local, remote) = (local.path(), remote.path());
+
+    // two textfiles, both alike in dignity
+    fs::write(local.join("build1.tar.zst"), b"lorem ipsum").unwrap();
+    fs::write(remote.join("build1.tar.zst"), b"dolor sit amet").unwrap();
+
+    artefacta(local, remote)
+        .args(&["install", "build1"])
+        .assert()
+        .success()
+        .stderr(
+            predicate::str::is_match(
+                "Using locally cached file for `build1` but size on remote differs",
+            )
+            .unwrap(),
+        );
+}

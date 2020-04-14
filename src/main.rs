@@ -171,6 +171,13 @@ async fn main() -> Result<()> {
 
 impl AddBuild {
     async fn add_to(&self, index: &mut ArtefactIndex) -> Result<()> {
+        // TODO: Also set exitcode::NOINPUT in this case
+        anyhow::ensure!(
+            self.path.exists(),
+            "Tried to add `{}` as new build, but file does not exist",
+            self.path.display()
+        );
+
         let entry = index
             .add_local_build(&self.path)
             .await

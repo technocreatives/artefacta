@@ -134,10 +134,16 @@ impl PatchGraph {
         self.builds.contains_key(&v)
     }
 
-    fn local_build(&self, v: Version) -> Option<&Entry> {
+    pub(crate) fn local_build(&self, v: Version) -> Option<&Entry> {
         let build_idx = self.builds.get(&v)?;
         let build = self.graph.node_weight(*build_idx)?;
         build.local.as_ref()
+    }
+
+    pub(crate) fn remote_build(&self, v: Version) -> Option<&Entry> {
+        let build_idx = self.builds.get(&v)?;
+        let build = self.graph.node_weight(*build_idx)?;
+        build.remote.as_ref()
     }
 
     pub(crate) fn has_local_build(&self, v: Version) -> bool {

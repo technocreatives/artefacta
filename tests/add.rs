@@ -26,37 +26,6 @@ fn add_existing_tar_zst_file_by_copying_it() {
 }
 
 #[test]
-fn add_existing_tar_zst_file_by_copying_it_with_remote_sync() {
-    let (local, remote) = init();
-    let (local, remote) = (local.path(), remote.path());
-
-    let scratch = tempdir().unwrap();
-    let scratch = scratch.path();
-
-    fs::write(scratch.join("build1.tar.zst"), b"foobar").unwrap();
-
-    artefacta(local, remote)
-        .arg("add")
-        .arg(scratch.join("build1.tar.zst"))
-        .arg("--upload")
-        .ok()
-        .unwrap();
-
-    ls(local);
-    ls(remote);
-
-    assert!(
-        local.join("build1.tar.zst").exists(),
-        "build was copied to local storage"
-    );
-
-    assert!(
-        remote.join("build1.tar.zst").exists(),
-        "build was copied to remote storage"
-    );
-}
-
-#[test]
 fn add_file_by_packaging_it_as_a_tar_zst() {
     let (local, remote) = init();
     let (local, remote) = (local.path(), remote.path());
@@ -107,4 +76,88 @@ fn add_directory_by_packaging_it_as_a_tar_zst() {
         local.join("build1.tar.zst").exists(),
         "build was copied to local storage"
     );
+}
+
+#[test]
+fn upload_a_build() {
+    let (local, remote) = init();
+    let (local, remote) = (local.path(), remote.path());
+
+    let scratch = tempdir().unwrap();
+    let scratch = scratch.path();
+
+    fs::write(scratch.join("build1.tar.zst"), b"foobar").unwrap();
+
+    artefacta(local, remote)
+        .arg("add")
+        .arg(scratch.join("build1.tar.zst"))
+        .arg("--upload")
+        .ok()
+        .unwrap();
+
+    ls(local);
+    ls(remote);
+
+    assert!(
+        local.join("build1.tar.zst").exists(),
+        "build was copied to local storage"
+    );
+
+    assert!(
+        remote.join("build1.tar.zst").exists(),
+        "build was copied to remote storage"
+    );
+}
+
+#[test]
+fn add_build_locally_and_calculate_a_patch() {
+    let (local, remote) = init();
+    let (local, remote) = (local.path(), remote.path());
+
+    let scratch = tempdir().unwrap();
+    let scratch = scratch.path();
+
+    fs::write(local.join("build1.tar.zst"), b"foobar").unwrap();
+    fs::write(scratch.join("build2.tar.zst"), b"foobarbaz").unwrap();
+
+    artefacta(local, remote)
+        .arg("add")
+        .arg(scratch.join("build2.tar.zst"))
+        .arg("--calc-patch-from=build1")
+        .assert()
+        .success();
+
+    ls(local);
+    ls(remote);
+
+    assert!(
+        local.join("build2.tar.zst").exists(),
+        "build was copied to remote storage"
+    );
+
+    assert!(
+        local.join("build1-build2.patch.zst").exists(),
+        "build was copied to remote storage"
+    );
+}
+
+#[test]
+fn adding_file_that_does_not_exist() {
+    let (local, remote) = init();
+    let (local, remote) = (local.path(), remote.path());
+
+    let scratch = tempdir().unwrap();
+    let scratch = scratch.path();
+
+    fs::write(scratch.join("right-name.tar.zst"), b"foobarbaz").unwrap();
+
+    artefacta(local, remote)
+        .arg("add")
+        .arg(scratch.join("wrong-name.tar.zst"))
+        .assert()
+        .failure()
+        .stderr(
+            predicate::str::is_match("Tried to add `(.*?)` as new build, but file does not exist")
+                .unwrap(),
+        );
 }

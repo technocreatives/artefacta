@@ -286,6 +286,17 @@ impl Index {
         match self.get_local_file(&build_path).await {
             Ok(local) => {
                 log::debug!("using local file for build `{:?}`", local);
+
+                // quick sanity check
+                if let Some(remote) = self.patch_graph.remote_build(version.clone()) {
+                    if local.size != remote.size {
+                        log::warn!(
+                            "Using locally cached file for `{}` but size on remote differs",
+                            version
+                        );
+                    }
+                }
+
                 return Ok(local);
             }
             Err(e) => log::debug!(
