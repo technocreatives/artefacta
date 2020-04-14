@@ -37,10 +37,33 @@ pub fn logger() {
 
 pub fn ls(path: impl AsRef<Path>) {
     let path = path.as_ref();
-    let res = Command::new("ls").current_dir(path).output().unwrap();
+    let res = Command::new("ls")
+        .arg("-lah")
+        .current_dir(path)
+        .output()
+        .unwrap();
     println!(
         "> ls {}\n{}---",
         path.display(),
         String::from_utf8_lossy(&res.stdout)
     );
+}
+
+pub fn untar(archive_path: impl AsRef<Path>, target_dir: impl AsRef<Path>) {
+    assert!(predicate::path::is_dir().eval(target_dir.as_ref()));
+
+    let res = Command::new("tar")
+        .arg("-Izstd")
+        .arg("-xvf")
+        .arg(archive_path.as_ref())
+        .current_dir(target_dir.as_ref())
+        .output()
+        .expect("tar");
+
+    println!(
+        "> tar {}\n{}---",
+        archive_path.as_ref().display(),
+        String::from_utf8_lossy(&res.stdout)
+    );
+    assert!(res.status.success());
 }
