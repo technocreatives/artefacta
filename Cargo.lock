@@ -60,6 +60,7 @@ version = "0.0.3"
 dependencies = [
  "anyhow",
  "assert_cmd",
+ "assert_fs",
  "base64 0.12.0",
  "bidiff",
  "bipatch",
@@ -70,6 +71,7 @@ dependencies = [
  "log",
  "md5",
  "petgraph",
+ "predicates",
  "pretty_env_logger",
  "proptest",
  "rand 0.7.3",
@@ -87,16 +89,29 @@ dependencies = [
 
 [[package]]
 name = "assert_cmd"
-version = "0.12.2"
+version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "936fcf2c692b37c696cd0002c57752b2d9478402450c9ca4a463f6afae16d6f5"
+checksum = "c88b9ca26f9c16ec830350d309397e74ee9abdfd8eb1f71cb6ecc71a3fc818da"
 dependencies = [
  "doc-comment",
- "escargot",
  "predicates",
  "predicates-core",
  "predicates-tree",
  "wait-timeout",
+]
+
+[[package]]
+name = "assert_fs"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "04dabd011e19821a348abb0dec7b7fda959cd6b3477c474395b958b291942b0e"
+dependencies = [
+ "doc-comment",
+ "globwalk",
+ "predicates",
+ "predicates-core",
+ "predicates-tree",
+ "tempfile",
 ]
 
 [[package]]
@@ -258,6 +273,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "bstr"
+version = "0.2.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2889e6d50f394968c8bf4240dc3f2a7eb4680844d27308f798229ac9d4725f41"
+dependencies = [
+ "memchr",
+]
+
+[[package]]
 name = "bumpalo"
 version = "3.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -364,6 +388,16 @@ name = "core-foundation-sys"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b3a71ab494c0b5b860bdc8407ae08978052417070c2ced38573a9157ad75b8ac"
+
+[[package]]
+name = "crossbeam-channel"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cced8691919c02aac3cb0a1bc2e9b73d89e832bf9a06fc579d4e71b68a2da061"
+dependencies = [
+ "crossbeam-utils",
+ "maybe-uninit",
+]
 
 [[package]]
 name = "crossbeam-deque"
@@ -509,18 +543,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "escargot"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "74cf96bec282dcdb07099f7e31d9fed323bca9435a09aba7b6d99b7617bca96d"
-dependencies = [
- "lazy_static",
- "log",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "failure"
 version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -581,6 +603,15 @@ name = "fixedbitset"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "37ab347416e802de484e4d03c7316c48f1ecb56574dfd4a46a80f173ce1de04d"
+
+[[package]]
+name = "float-cmp"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "da62c4f1b81918835a8c6a484a397775fff5953fe83529afd51b05f5c6a6617d"
+dependencies = [
+ "num-traits",
+]
 
 [[package]]
 name = "fnv"
@@ -741,6 +772,29 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b919933a397b79c37e33b77bb2aa3dc8eb6e165ad809e58ff75bc7db2e34574"
 
 [[package]]
+name = "globset"
+version = "0.4.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7ad1da430bd7281dde2576f44c84cc3f0f7b475e7202cd503042dff01a8c8120"
+dependencies = [
+ "aho-corasick",
+ "bstr",
+ "fnv",
+ "log",
+ "regex",
+]
+
+[[package]]
+name = "globwalk"
+version = "0.7.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d9db17aec586697a93219b19726b5b68307eba92898c34b170857343fe67c99d"
+dependencies = [
+ "ignore",
+ "walkdir",
+]
+
+[[package]]
 name = "goblin"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -897,6 +951,25 @@ dependencies = [
  "matches",
  "unicode-bidi",
  "unicode-normalization",
+]
+
+[[package]]
+name = "ignore"
+version = "0.4.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ddf60d063dbe6b75388eec66cfc07781167ae3d34a09e0c433e6c5de0511f7fb"
+dependencies = [
+ "crossbeam-channel",
+ "crossbeam-utils",
+ "globset",
+ "lazy_static",
+ "log",
+ "memchr",
+ "regex",
+ "same-file",
+ "thread_local",
+ "walkdir",
+ "winapi-util",
 ]
 
 [[package]]
@@ -1103,6 +1176,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "normalize-line-endings"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "61807f77802ff30975e01f4f071c8ba10c022052f98b3294119f3e615d13e5be"
+
+[[package]]
 name = "num-integer"
 version = "0.1.42"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1210,7 +1289,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "347a1b6f0b21e636bc9872fb60b83b8e185f6f5516298b8238699f7f9a531030"
 dependencies = [
  "difference",
+ "float-cmp",
+ "normalize-line-endings",
  "predicates-core",
+ "regex",
 ]
 
 [[package]]

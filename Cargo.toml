@@ -37,4 +37,6 @@ futures = "0.3.4"
 [dev-dependencies]
 rand = "0.7.3"
 proptest = "0.9.5"
-assert_cmd = "0.12.0"
+assert_cmd = "1.0.1"
+assert_fs = "1.0.0"
+predicates = "1.0.4"

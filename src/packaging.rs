@@ -8,11 +8,20 @@ use std::{
 };
 use walkdir::WalkDir;
 
-pub fn package(source_dir: &Path, target: impl Write) -> Result<()> {
+pub fn package(source: &Path, target: impl Write) -> Result<()> {
     let mut archive = tar::Builder::new(target);
     archive.mode(tar::HeaderMode::Deterministic);
+    log::debug!("writing files from `{}` to archive", source.display());
 
-    let entries = WalkDir::new(source_dir)
+    let root = if source.is_file() {
+        source
+            .parent()
+            .with_context(|| format!("can't find parent of `{}`", source.display()))?
+    } else {
+        source
+    };
+
+    let entries = WalkDir::new(source)
         .sort_by(|a, b| a.path().cmp(b.path()))
         .into_iter();
 
@@ -21,7 +30,7 @@ pub fn package(source_dir: &Path, target: impl Write) -> Result<()> {
         if file.file_type().is_dir() {
             log::trace!("skipping directory entry in tar");
         } else if file.file_type().is_file() {
-            add_file(&mut archive, &file, source_dir)
+            add_file(&mut archive, &file, root)
                 .with_context(|| format!("add `{}` to archive", file.path().display()))?;
         }
     }
@@ -37,13 +46,42 @@ fn add_file<W: Write>(
     root: &Path,
 ) -> Result<()> {
     let path = file.path().strip_prefix(root).context("root path prefix")?;
-    let mut header = tar::Header::new_gnu();
+    let is_sane_path = path.to_str().is_some();
+    if !is_sane_path {
+        log::warn!(
+            "adding path `{}` to archive which is not UTF-8. \
+            This will most likely break somewhere down the line \
+            without us noticing until it's much too late.",
+            path.display()
+        );
+    }
+    let metadata = file.metadata().context("read metadata")?;
 
+    let mut header = tar::Header::new_gnu();
     header
         .set_path(path)
         .context("set path in archive header")?;
-    header.set_size(file.metadata().context("read metadata")?.len());
+    header.set_size(metadata.len());
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        header.set_mode(metadata.permissions().mode())
+    }
+    #[cfg(not(unix))]
+    {
+        // if you run this on Windows, I guess you get read and execute permissions always
+        header.set_mode(0o100755)
+    }
+
     header.set_cksum();
+    header
+        .set_device_major(0)
+        .context("set device major header")?;
+    header
+        .set_device_minor(0)
+        .context("set device minor header")?;
+
     let file = BufReader::new(fs::File::open(file.path()).context("open file")?);
 
     archive
@@ -59,28 +97,92 @@ mod tests {
     use proptest::prelude::*;
 
     #[test]
+    fn archive_a_file() {
+        use zstd::stream::write::Encoder as ZstdEncoder;
+
+        logger();
+
+        let tmp = tempdir().unwrap();
+        let archive = tmp.child("archive.tar.zst");
+
+        let binary = tmp.child("do-the-work.sh");
+        binary.write_str("#! /bin/sh\necho 'Done!'").unwrap();
+
+        let mut output = ZstdEncoder::new(fs::File::create(&archive.path()).unwrap(), 3).unwrap();
+        package(&binary.path(), &mut output).expect("package");
+        output.finish().unwrap();
+
+        archive.assert(predicate::path::is_file());
+
+        let unarchive = tempdir().unwrap();
+        untar(archive.path(), unarchive.path());
+        ls(tmp.path());
+
+        unarchive
+            .child("do-the-work.sh")
+            .assert(predicate::path::is_file());
+    }
+
+    #[test]
+    #[cfg(unix)] // only tests POSIX ACLs
+    fn archive_keeps_permission_bits() {
+        use std::os::unix::fs::PermissionsExt;
+        use zstd::stream::write::Encoder as ZstdEncoder;
+
+        let tmp = tempdir().unwrap();
+        let archive = tmp.child("archive.tar.zst");
+
+        let binary = tmp.child("do-the-work.sh");
+        binary.write_str("#! /bin/sh\necho 'Done!'").unwrap();
+
+        let read_and_execute = fs::Permissions::from_mode(0o100555);
+        fs::set_permissions(binary.path(), read_and_execute.clone()).unwrap();
+
+        let mut output = ZstdEncoder::new(fs::File::create(archive.path()).unwrap(), 3).unwrap();
+        package(binary.path(), &mut output).expect("package");
+        output.finish().unwrap();
+
+        archive.assert(predicate::path::is_file());
+
+        ls(tmp.path());
+
+        let unarchive = tempdir().unwrap();
+        untar(archive.path(), unarchive.path());
+
+        ls(unarchive.path());
+
+        let perms_after_the_tar = unarchive
+            .child("do-the-work.sh")
+            .path()
+            .metadata()
+            .unwrap()
+            .permissions();
+        assert_eq!(perms_after_the_tar.mode(), read_and_execute.mode());
+    }
+
+    #[test]
     fn archive_is_fine() {
         use zstd::stream::write::Encoder as ZstdEncoder;
 
         let tmp = tempdir().expect("tempdir");
-        let archive = tmp.path().join("archive.tar.zst");
+        let archive = tmp.child("archive.tar.zst");
+        let src = tmp.child("src");
+        src.create_dir_all().unwrap();
+        src.child("Cargo.toml").write_str("[package]").unwrap();
+        src.child("main.rs").write_str("fn main() {}").unwrap();
 
-        let mut output = ZstdEncoder::new(fs::File::create(&archive).unwrap(), 3).unwrap();
-        package("src".as_ref(), &mut output).expect("package");
+        let mut output = ZstdEncoder::new(fs::File::create(archive.path()).unwrap(), 3).unwrap();
+        package(src.path(), &mut output).expect("package");
         output.finish().unwrap();
 
-        let cmd = std::process::Command::new("tar")
-            .arg("-Izstd")
-            .arg("-xvf")
-            .arg(&archive)
-            .current_dir(tmp.path())
-            .output()
-            .expect("tar");
-        dbg!(&cmd);
-        assert!(cmd.status.success());
+        let unarchive = tempdir().unwrap();
+        untar(archive.path(), unarchive.path());
 
-        let ls = std::process::Command::new("ls").output().unwrap();
-        dbg!(&ls);
+        ls(src.path());
+
+        unarchive
+            .child("main.rs")
+            .assert(predicate::path::is_file());
     }
 
     proptest! {
@@ -138,7 +240,7 @@ mod tests {
                 .current_dir(tmp.path())
                 .output()
                 .expect("tar");
-            // dbg!(&cmd);
+
             prop_assert!(cmd.status.success());
         }
     }

@@ -57,6 +57,35 @@ fn add_existing_tar_zst_file_by_copying_it_with_remote_sync() {
 }
 
 #[test]
+fn add_file_by_packaging_it_as_a_tar_zst() {
+    let (local, remote) = init();
+    let (local, remote) = (local.path(), remote.path());
+
+    let build_dir = tempdir().unwrap();
+    let binary = build_dir.child("do-the-work.sh");
+    binary.write_str("ELF").unwrap();
+
+    artefacta(local, remote)
+        .arg("add-package")
+        .arg("build1")
+        .arg(binary.path())
+        .assert()
+        .success();
+
+    assert!(
+        local.join("build1.tar.zst").exists(),
+        "build was copied to local storage"
+    );
+
+    let unarchive = tempdir().unwrap();
+    untar(local.join("build1.tar.zst"), unarchive.path());
+
+    unarchive
+        .child("do-the-work.sh")
+        .assert(predicate::path::is_file());
+}
+
+#[test]
 fn add_directory_by_packaging_it_as_a_tar_zst() {
     let (local, remote) = init();
     let (local, remote) = (local.path(), remote.path());
