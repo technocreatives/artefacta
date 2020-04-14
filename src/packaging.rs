@@ -8,11 +8,20 @@ use std::{
 };
 use walkdir::WalkDir;
 
-pub fn package(source_dir: &Path, target: impl Write) -> Result<()> {
+pub fn package(source: &Path, target: impl Write) -> Result<()> {
     let mut archive = tar::Builder::new(target);
     archive.mode(tar::HeaderMode::Deterministic);
+    log::debug!("writing files from `{}` to archive", source.display());
 
-    let entries = WalkDir::new(source_dir)
+    let root = if source.is_file() {
+        source
+            .parent()
+            .with_context(|| format!("can't find parent of `{}`", source.display()))?
+    } else {
+        source
+    };
+
+    let entries = WalkDir::new(source)
         .sort_by(|a, b| a.path().cmp(b.path()))
         .into_iter();
 
@@ -21,7 +30,7 @@ pub fn package(source_dir: &Path, target: impl Write) -> Result<()> {
         if file.file_type().is_dir() {
             log::trace!("skipping directory entry in tar");
         } else if file.file_type().is_file() {
-            add_file(&mut archive, &file, source_dir)
+            add_file(&mut archive, &file, root)
                 .with_context(|| format!("add `{}` to archive", file.path().display()))?;
         }
     }
@@ -57,6 +66,33 @@ mod tests {
     use super::*;
     use crate::test_helpers::*;
     use proptest::prelude::*;
+
+    #[test]
+    fn archive_a_file() {
+        use zstd::stream::write::Encoder as ZstdEncoder;
+
+        logger();
+
+        let tmp = tempdir().unwrap();
+        let archive = tmp.child("archive.tar.zst");
+
+        let binary = tmp.child("do-the-work.sh");
+        binary.write_str("#! /bin/sh\necho 'Done!'").unwrap();
+
+        let mut output = ZstdEncoder::new(fs::File::create(&archive.path()).unwrap(), 3).unwrap();
+        package(&binary.path(), &mut output).expect("package");
+        output.finish().unwrap();
+
+        archive.assert(predicate::path::is_file());
+
+        let unarchive = tempdir().unwrap();
+        untar(archive.path(), unarchive.path());
+        ls(tmp.path());
+
+        unarchive
+            .child("do-the-work.sh")
+            .assert(predicate::path::is_file());
+    }
 
     #[test]
     fn archive_is_fine() {
