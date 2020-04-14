@@ -503,7 +503,7 @@ mod tests {
         let dir = test_dir(&["1.tar.zst", "2.tar.zst", "1-2.patch.zst"])?;
         let remote_dir = test_dir(&["3.tar.zst"])?;
 
-        let mut index = Index::new(&dir, remote_dir.path().try_into()?).await?;
+        let mut index = Index::new(&dir.path(), remote_dir.path().try_into()?).await?;
         let build1 = FileEntry::InFilesystem(Entry::from_path(
             remote_dir.path().join("3.tar.zst"),
             index.local.clone(),
@@ -528,7 +528,7 @@ mod tests {
         Ok(())
     }
 
-    fn test_dir(files: &[&str]) -> Result<tempfile::TempDir> {
+    fn test_dir(files: &[&str]) -> Result<TempDir> {
         let dir = tempdir()?;
         let mut rng = rand::thread_rng();
 
