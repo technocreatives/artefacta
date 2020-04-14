@@ -1,6 +1,6 @@
 [package]
 name = "artefacta"
-version = "0.0.3"
+version = "0.0.4"
 authors = ["Pascal Hertleif <pascal@technocreatives.com>"]
 edition = "2018"
 
