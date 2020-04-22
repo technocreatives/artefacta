@@ -57,10 +57,12 @@ fn add_file<W: Write>(
     }
     let metadata = file.metadata().context("read metadata")?;
 
+    // Welcome to this new tar file entry.
+    //
+    // We set the size, POSIX permission flags, and some defaults ourselves but
+    // the call to `append_data` all the way down there will set the path with
+    // the nice GNU extensions to handle long paths.
     let mut header = tar::Header::new_gnu();
-    header
-        .set_path(path)
-        .context("set path in archive header")?;
     header.set_size(metadata.len());
 
     #[cfg(unix)]
@@ -84,6 +86,8 @@ fn add_file<W: Write>(
 
     let file = BufReader::new(fs::File::open(file.path()).context("open file")?);
 
+    // Note: This also sets the file path in the header, and then appends header
+    // and payload to the archive.
     archive
         .append_data(&mut header, path, file)
         .context("append file")?;
@@ -121,6 +125,30 @@ mod tests {
         unarchive
             .child("do-the-work.sh")
             .assert(predicate::path::is_file());
+    }
+
+    #[test]
+    fn archive_with_long_paths() {
+        use zstd::stream::write::Encoder as ZstdEncoder;
+
+        let tmp = tempdir().unwrap();
+        let long_path = "StandaloneLinux64/What-in-the-actual-Hell/Managed/Unity.RenderPipelines.ShaderGraph.ShaderGraphLibrary.dll";
+        tmp.child(long_path).write_str("archive me").unwrap();
+
+        let target = tempdir().unwrap();
+        let archive = target.child("archive.tar.zst");
+
+        let mut output = ZstdEncoder::new(fs::File::create(archive.path()).unwrap(), 3).unwrap();
+        package(tmp.path(), &mut output).expect("package");
+        output.finish().unwrap();
+
+        archive.assert(predicate::path::is_file());
+
+        ls(target.path());
+        let unarchive = tempdir().unwrap();
+        untar(archive.path(), unarchive.path());
+
+        ls(unarchive.path());
     }
 
     #[test]
