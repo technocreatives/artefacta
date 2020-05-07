@@ -1,5 +1,4 @@
-use crate::{paths, Storage};
-use anyhow::{Context, Result};
+use crate::{err::*, paths, Storage};
 use std::{fmt, path::Path};
 
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

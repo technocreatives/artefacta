@@ -1,6 +1,6 @@
 //! Package build using `tar` in the most deterministic way possible.
 
-use anyhow::{Context, Result};
+use crate::err::*;
 use std::{
     fs,
     io::{BufReader, Write},

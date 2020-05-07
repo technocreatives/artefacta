@@ -1,5 +1,4 @@
-use crate::paths::path_as_string;
-use anyhow::{Context, Result};
+use crate::{err::*, paths::path_as_string};
 pub use std::{
     convert::{TryFrom, TryInto},
     fmt,
@@ -90,10 +89,10 @@ impl From<InnerStorage> for Storage {
 }
 
 impl<'p> TryFrom<&'p Path> for Storage {
-    type Error = anyhow::Error;
+    type Error = color_eyre::Report;
 
     fn try_from(path: &Path) -> Result<Self> {
-        anyhow::ensure!(path.exists(), "Path `{}` does not exist", path.display());
+        ensure!(path.exists(), "Path `{}` does not exist", path.display());
         let path = path
             .canonicalize()
             .with_context(|| format!("cannot canonicalize path `{}`", path.display()))?;
@@ -102,7 +101,7 @@ impl<'p> TryFrom<&'p Path> for Storage {
 }
 
 impl TryFrom<PathBuf> for Storage {
-    type Error = anyhow::Error;
+    type Error = color_eyre::Report;
 
     fn try_from(path: PathBuf) -> Result<Self> {
         Storage::try_from(path.as_path())
@@ -110,7 +109,7 @@ impl TryFrom<PathBuf> for Storage {
 }
 
 impl FromStr for Storage {
-    type Err = anyhow::Error;
+    type Err = color_eyre::Report;
 
     fn from_str(s: &str) -> Result<Self> {
         let path = PathBuf::from(s);
@@ -125,7 +124,7 @@ impl FromStr for Storage {
                     .with_context(|| format!("convert `{}` to S3 bucket", url))?,
             )
             .into()),
-            scheme => anyhow::bail!("unsupported protocol `{}`", scheme),
+            scheme => bail!("unsupported protocol `{}`", scheme),
         }
     }
 }
@@ -196,7 +195,7 @@ impl Storage {
         match self.inner.as_ref() {
             InnerStorage::Filesystem(root) => {
                 let path = root.join(path);
-                anyhow::ensure!(path.exists(), "Path `{}` does not exist", path.display());
+                ensure!(path.exists(), "Path `{}` does not exist", path.display());
                 let size = path
                     .metadata()
                     .with_context(|| format!("read metadata of `{}`", path.display()))?
@@ -258,7 +257,7 @@ impl Storage {
         match self.inner.as_ref() {
             InnerStorage::Filesystem(root) => {
                 let new_path = if target.is_absolute() {
-                    anyhow::ensure!(
+                    ensure!(
                         target.starts_with(&root),
                         "build target path is absolute but not in storage directory"
                     );

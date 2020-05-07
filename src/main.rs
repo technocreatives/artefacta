@@ -1,4 +1,6 @@
-use anyhow::{Context, Result};
+mod err;
+
+use crate::err::*;
 use std::{fs, path::PathBuf};
 use structopt::StructOpt;
 
@@ -172,7 +174,7 @@ async fn main() -> Result<()> {
 impl AddBuild {
     async fn add_to(&self, index: &mut ArtefactIndex) -> Result<()> {
         // TODO: Also set exitcode::NOINPUT in this case
-        anyhow::ensure!(
+        ensure!(
             self.path.exists(),
             "Tried to add `{}` as new build, but file does not exist",
             self.path.display()

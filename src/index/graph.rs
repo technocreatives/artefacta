@@ -1,6 +1,5 @@
 use super::{Build, Patch, Version};
-use crate::{paths, storage::Entry};
-use anyhow::{Context, Result};
+use crate::{err::*, paths, storage::Entry};
 use petgraph::graph::{DefaultIx, EdgeIndex, Graph, NodeIndex};
 use std::{collections::HashMap, convert::TryFrom, fs::ReadDir, io::Error as IoError};
 
@@ -228,7 +227,7 @@ pub enum UpgradePath {
 impl TryFrom<ReadDir> for PatchGraph {
     type Error = IoError;
 
-    fn try_from(_x: ReadDir) -> Result<Self, IoError> {
+    fn try_from(_x: ReadDir) -> StdResult<Self, IoError> {
         todo!()
     }
 }
