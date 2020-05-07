@@ -5,10 +5,10 @@ authors = ["Pascal Hertleif <pascal@technocreatives.com>"]
 edition = "2018"
 
 [dependencies]
-anyhow = "1.0.26"
 log = "0.4.8"
 humansize = "1.1.0"
 env_logger = "0.7.1"
+erreur = { path = "erreur" }
 
 structopt = "0.3.11"
 color-backtrace = "0.3.0"
@@ -40,3 +40,6 @@ proptest = "0.9.5"
 assert_cmd = "1.0.1"
 assert_fs = "1.0.0"
 predicates = "1.0.4"
+
+[workspace]
+members = [".", "erreur"]

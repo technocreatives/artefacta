@@ -1,0 +1,9 @@
+[package]
+name = "erreur"
+version = "0.1.0"
+authors = ["Pascal Hertleif <pascal@technocreatives.com>"]
+edition = "2018"
+
+[dependencies]
+eyre = "0.4"
+color-eyre = "0.2"

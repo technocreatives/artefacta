@@ -1,5 +1,5 @@
 use crate::paths::path_as_string;
-use anyhow::{Context, Result};
+use erreur::{bail, ensure, Context, Help, Report, Result};
 pub use std::{
     convert::{TryFrom, TryInto},
     fmt,
@@ -90,10 +90,10 @@ impl From<InnerStorage> for Storage {
 }
 
 impl<'p> TryFrom<&'p Path> for Storage {
-    type Error = anyhow::Error;
+    type Error = Report;
 
     fn try_from(path: &Path) -> Result<Self> {
-        anyhow::ensure!(path.exists(), "Path `{}` does not exist", path.display());
+        ensure!(path.exists(), "Path `{}` does not exist", path.display());
         let path = path
             .canonicalize()
             .with_context(|| format!("cannot canonicalize path `{}`", path.display()))?;
@@ -102,7 +102,7 @@ impl<'p> TryFrom<&'p Path> for Storage {
 }
 
 impl TryFrom<PathBuf> for Storage {
-    type Error = anyhow::Error;
+    type Error = Report;
 
     fn try_from(path: PathBuf) -> Result<Self> {
         Storage::try_from(path.as_path())
@@ -110,7 +110,7 @@ impl TryFrom<PathBuf> for Storage {
 }
 
 impl FromStr for Storage {
-    type Err = anyhow::Error;
+    type Err = Report;
 
     fn from_str(s: &str) -> Result<Self> {
         let path = PathBuf::from(s);
@@ -125,7 +125,7 @@ impl FromStr for Storage {
                     .with_context(|| format!("convert `{}` to S3 bucket", url))?,
             )
             .into()),
-            scheme => anyhow::bail!("unsupported protocol `{}`", scheme),
+            scheme => bail!("unsupported protocol `{}`", scheme),
         }
     }
 }
@@ -196,7 +196,7 @@ impl Storage {
         match self.inner.as_ref() {
             InnerStorage::Filesystem(root) => {
                 let path = root.join(path);
-                anyhow::ensure!(path.exists(), "Path `{}` does not exist", path.display());
+                ensure!(path.exists(), "Path `{}` does not exist", path.display());
                 let size = path
                     .metadata()
                     .with_context(|| format!("read metadata of `{}`", path.display()))?
@@ -235,7 +235,8 @@ impl Storage {
                 stream
                     .read_to_end(&mut body)
                     .await
-                    .context("read object content into buffer")?;
+                    .context("failed to read object content into buffer")
+                    .note("S3 has bad days just like the rest of us")?;
 
                 let entry = Entry {
                     storage: self.clone(),
@@ -243,7 +244,14 @@ impl Storage {
                     size: result
                         .content_length
                         .map(|s| s as u64)
-                        .context("got an object with no size")?,
+                        .context("got an object with no size")
+                        .with_suggestion(|| {
+                            format!(
+                                "Best check whether the upload of `{}` \
+                                was successful using S3/DigitalOceans web interface",
+                                key
+                            )
+                        })?,
                 };
 
                 Ok(File::Inline(entry, body.into_boxed_slice().into()))
@@ -258,7 +266,7 @@ impl Storage {
         match self.inner.as_ref() {
             InnerStorage::Filesystem(root) => {
                 let new_path = if target.is_absolute() {
-                    anyhow::ensure!(
+                    ensure!(
                         target.starts_with(&root),
                         "build target path is absolute but not in storage directory"
                     );
@@ -306,7 +314,8 @@ impl Storage {
                         ..Default::default()
                     })
                     .await
-                    .with_context(|| format!("Failed to upload object `{}` to S3", key))?;
+                    .with_context(|| format!("Failed to upload object `{}` to S3", key))
+                    .note("S3 has bad days just like the rest of us")?;
             }
         }
         Ok(())

@@ -1,4 +1,5 @@
-use anyhow::{Context, Result};
+use erreur::{ensure, Context, Help, Result};
+
 use std::{fs, path::PathBuf};
 use structopt::StructOpt;
 
@@ -61,7 +62,8 @@ async fn main() -> Result<()> {
     log::debug!("{:?}", args);
     let mut index = ArtefactIndex::new(&args.local_store, args.remote_store.clone())
         .await
-        .context("open artifact store")?;
+        .context("open artifact store")
+        .note("Always use absolute paths. This is serious business, there is no room for doubt.")?;
     match args.cmd {
         Command::Debug => {
             dbg!(index);
@@ -130,7 +132,9 @@ async fn main() -> Result<()> {
                 .with_context(|| format!("cannot canonicalize path `{}`", build.path.display()))?;
 
             let archive_name = format!("{}.tar.zst", version);
-            let tmp = tempdir().context("could not create temporary directory")?;
+            let tmp = tempdir()
+                .context("could not create temporary directory")
+                .note("that is really strange: are you running this as weird dynamic user in systemd or something?")?;
             let archive_path = tmp.path().join(&archive_name);
 
             log::info!(
@@ -147,7 +151,10 @@ async fn main() -> Result<()> {
                 .with_context(|| format!("package archive `{}`", archive_path.display()))?;
             archive
                 .finish()
-                .with_context(|| format!("write zstd archive `{}`", archive_path.display()))?;
+                .with_context(|| format!("write zstd archive `{}`", archive_path.display()))
+                .note(
+                    "archive file was created but not written successfully -- clean it up yourself",
+                )?;
 
             let add = AddBuild {
                 path: archive_path,
@@ -172,7 +179,7 @@ async fn main() -> Result<()> {
 impl AddBuild {
     async fn add_to(&self, index: &mut ArtefactIndex) -> Result<()> {
         // TODO: Also set exitcode::NOINPUT in this case
-        anyhow::ensure!(
+        ensure!(
             self.path.exists(),
             "Tried to add `{}` as new build, but file does not exist",
             self.path.display()
@@ -198,7 +205,10 @@ impl AddBuild {
 
         if self.upload {
             log::debug!("uploading new local artefacts to remote");
-            index.push().await.context("sync local changes to remote")?;
+            index
+                .push()
+                .await
+                .context("could not sync local changes to remote")?;
         }
 
         Ok(())

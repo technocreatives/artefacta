@@ -1,6 +1,6 @@
 //! Package build using `tar` in the most deterministic way possible.
 
-use anyhow::{Context, Result};
+use erreur::{Context, Result};
 use std::{
     fs,
     io::{BufReader, Write},

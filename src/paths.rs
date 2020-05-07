@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use erreur::{ensure, Context, Result};
 use std::{convert::TryFrom, path::Path};
 
 use crate::index::Version;
@@ -39,7 +39,7 @@ pub fn patch_versions_from_path(path: impl AsRef<Path>) -> Result<(Version, Vers
     let path = path.as_ref();
     let name = file_name(path).with_context(|| format!("get name of `{:?}`", path))?;
     let parts: Vec<&str> = name.splitn(2, '-').collect();
-    anyhow::ensure!(
+    ensure!(
         parts.len() == 2,
         "patch file name pattern is not `<hash>-<hash>`: `{}`",
         name,

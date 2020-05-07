@@ -2,7 +2,7 @@ use crate::{
     apply_patch, paths,
     storage::{Entry, File as FileEntry, Storage},
 };
-use anyhow::{Context, Result};
+use erreur::{bail, ensure, Context, Help, Result};
 use std::{
     convert::TryFrom,
     fs::{self, File},
@@ -36,7 +36,9 @@ pub struct Index {
 impl Index {
     /// Build index from directory content
     pub async fn new(local: impl AsRef<Path>, remote: Storage) -> Result<Self> {
-        let local = Storage::try_from(local.as_ref()).context("invalid local storage path")?;
+        let local = Storage::try_from(local.as_ref())
+            .context("invalid local storage path")
+            .note("`mkdir -pv` is your friend")?;
         let mut patch_graph = PatchGraph::empty();
         patch_graph
             .update_from_file_list(
@@ -65,7 +67,7 @@ impl Index {
 
     pub async fn calculate_patch(&mut self, from: Version, to: Version) -> Result<()> {
         fn read_file(entry: Entry) -> Result<Vec<u8>> {
-            anyhow::ensure!(
+            ensure!(
                 entry.storage.is_local(),
                 "only reading from local storage supported"
             );
@@ -148,7 +150,7 @@ impl Index {
     }
 
     pub async fn get_patch(&mut self, from: Version, to: Version) -> Result<Entry> {
-        anyhow::ensure!(
+        ensure!(
             self.patch_graph.has_patch(from.clone(), to.clone()),
             "patch `{:?}` unknown",
         );
@@ -178,12 +180,12 @@ impl Index {
     /// Upgrade from one version to the next
     pub async fn upgrade_to_build(&mut self, from: Version, to: Version) -> Result<Entry> {
         log::debug!("searching for upgrade path from `{}` to `{}`", from, to);
-        anyhow::ensure!(
+        ensure!(
             self.patch_graph.has_build(from.clone()),
             "build `{:?}` unknown",
             from
         );
-        anyhow::ensure!(
+        ensure!(
             self.patch_graph.has_build(to.clone()),
             "build `{:?}` unknown",
             to
@@ -276,7 +278,7 @@ impl Index {
 
     /// Get build (adds to local cache if not present)
     pub async fn get_build(&mut self, version: Version) -> Result<Entry> {
-        anyhow::ensure!(
+        ensure!(
             self.patch_graph.has_build(version.clone()),
             "build `{:?}` unknown",
             version
@@ -339,7 +341,7 @@ impl Index {
         let path = match file {
             FileEntry::InFilesystem(entry) => {
                 let path = Path::new(&entry.path);
-                anyhow::ensure!(
+                ensure!(
                     !path.starts_with(&local),
                     "asked to add patch from same directory it would be written to"
                 );
@@ -361,7 +363,7 @@ impl Index {
         let entry = Entry::from_path(&new_path, self.local.clone())
             .context("create entry for new build file")?;
 
-        anyhow::ensure!(
+        ensure!(
             entry.size > 0,
             "Just added `{}` but it's empty (size 0). That's not gonna be useful.",
             entry.path
@@ -384,7 +386,7 @@ impl Index {
         let path = match file {
             FileEntry::InFilesystem(entry) => {
                 let path = Path::new(&entry.path);
-                anyhow::ensure!(
+                ensure!(
                     !path.starts_with(&local),
                     "asked to add patch from same directory it would be written to"
                 );
@@ -425,7 +427,7 @@ impl Index {
                 if let Some(local) = b.local {
                     Ok(local)
                 } else {
-                    anyhow::bail!("no local entry in `{:?}`", b)
+                    bail!("no local entry in `{:?}`", b)
                 }
             })
             .collect::<Result<Vec<Entry>>>()
@@ -444,7 +446,7 @@ impl Index {
                 if let Some(local) = b.local {
                     Ok(local)
                 } else {
-                    anyhow::bail!("no local entry in `{:?}`", b)
+                    bail!("no local entry in `{:?}`", b)
                 }
             })
             .collect::<Result<Vec<Entry>>>()
