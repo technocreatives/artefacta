@@ -2,7 +2,7 @@ use crate::{
     apply_patch, paths,
     storage::{Entry, File as FileEntry, Storage},
 };
-use erreur::{bail, ensure, Context, Result};
+use erreur::{bail, ensure, Context, Help, Result};
 use std::{
     convert::TryFrom,
     fs::{self, File},
@@ -36,7 +36,9 @@ pub struct Index {
 impl Index {
     /// Build index from directory content
     pub async fn new(local: impl AsRef<Path>, remote: Storage) -> Result<Self> {
-        let local = Storage::try_from(local.as_ref()).context("invalid local storage path")?;
+        let local = Storage::try_from(local.as_ref())
+            .context("invalid local storage path")
+            .note("`mkdir -pv` is your friend")?;
         let mut patch_graph = PatchGraph::empty();
         patch_graph
             .update_from_file_list(

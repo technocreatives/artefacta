@@ -1,5 +1,5 @@
 use crate::paths::path_as_string;
-use erreur::{bail, ensure, Context, Report, Result};
+use erreur::{bail, ensure, Context, Help, Report, Result};
 pub use std::{
     convert::{TryFrom, TryInto},
     fmt,
@@ -235,7 +235,8 @@ impl Storage {
                 stream
                     .read_to_end(&mut body)
                     .await
-                    .context("read object content into buffer")?;
+                    .context("failed to read object content into buffer")
+                    .note("S3 has bad days just like the rest of us")?;
 
                 let entry = Entry {
                     storage: self.clone(),
@@ -243,7 +244,14 @@ impl Storage {
                     size: result
                         .content_length
                         .map(|s| s as u64)
-                        .context("got an object with no size")?,
+                        .context("got an object with no size")
+                        .with_suggestion(|| {
+                            format!(
+                                "Best check whether the upload of `{}` \
+                                was successful using S3/DigitalOceans web interface",
+                                key
+                            )
+                        })?,
                 };
 
                 Ok(File::Inline(entry, body.into_boxed_slice().into()))
@@ -306,7 +314,8 @@ impl Storage {
                         ..Default::default()
                     })
                     .await
-                    .with_context(|| format!("Failed to upload object `{}` to S3", key))?;
+                    .with_context(|| format!("Failed to upload object `{}` to S3", key))
+                    .note("S3 has bad days just like the rest of us")?;
             }
         }
         Ok(())

@@ -1,4 +1,4 @@
-use erreur::{Context, StdError};
+use erreur::StdError;
 use std::{convert::TryFrom, fmt, str::FromStr};
 
 /// Short string in specific format. Cheap to clone.
