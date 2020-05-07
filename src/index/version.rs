@@ -1,4 +1,4 @@
-use crate::err::*;
+use erreur::{Context, StdError};
 use std::{convert::TryFrom, fmt, str::FromStr};
 
 /// Short string in specific format. Cheap to clone.
@@ -39,7 +39,7 @@ impl fmt::Display for InvalidVersion {
 impl FromStr for Version {
     type Err = InvalidVersion;
 
-    fn from_str(s: &str) -> StdResult<Self, Self::Err> {
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         // TODO: Validate for specific format
         Ok(Version { data: s.into() })
     }
@@ -48,7 +48,7 @@ impl FromStr for Version {
 impl<'a> TryFrom<&'a str> for Version {
     type Error = InvalidVersion;
 
-    fn try_from(s: &str) -> StdResult<Self, Self::Error> {
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
         s.parse()
     }
 }
@@ -56,7 +56,7 @@ impl<'a> TryFrom<&'a str> for Version {
 impl<'a> TryFrom<&'a String> for Version {
     type Error = InvalidVersion;
 
-    fn try_from(s: &String) -> StdResult<Self, Self::Error> {
+    fn try_from(s: &String) -> Result<Self, Self::Error> {
         s.parse()
     }
 }

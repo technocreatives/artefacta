@@ -12,7 +12,5 @@ pub use packaging::package;
 mod storage;
 pub use storage::Storage;
 
-pub(crate) mod err;
-
 #[cfg(test)]
 pub(crate) mod test_helpers;

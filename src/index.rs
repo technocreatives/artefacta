@@ -1,9 +1,8 @@
 use crate::{
-    apply_patch,
-    err::*,
-    paths,
+    apply_patch, paths,
     storage::{Entry, File as FileEntry, Storage},
 };
+use erreur::{bail, ensure, Context, Result};
 use std::{
     convert::TryFrom,
     fs::{self, File},

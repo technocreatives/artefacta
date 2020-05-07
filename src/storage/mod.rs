@@ -1,4 +1,5 @@
-use crate::{err::*, paths::path_as_string};
+use crate::paths::path_as_string;
+use erreur::{bail, ensure, Context, Report, Result};
 pub use std::{
     convert::{TryFrom, TryInto},
     fmt,
@@ -89,7 +90,7 @@ impl From<InnerStorage> for Storage {
 }
 
 impl<'p> TryFrom<&'p Path> for Storage {
-    type Error = color_eyre::Report;
+    type Error = Report;
 
     fn try_from(path: &Path) -> Result<Self> {
         ensure!(path.exists(), "Path `{}` does not exist", path.display());
@@ -101,7 +102,7 @@ impl<'p> TryFrom<&'p Path> for Storage {
 }
 
 impl TryFrom<PathBuf> for Storage {
-    type Error = color_eyre::Report;
+    type Error = Report;
 
     fn try_from(path: PathBuf) -> Result<Self> {
         Storage::try_from(path.as_path())
@@ -109,7 +110,7 @@ impl TryFrom<PathBuf> for Storage {
 }
 
 impl FromStr for Storage {
-    type Err = color_eyre::Report;
+    type Err = Report;
 
     fn from_str(s: &str) -> Result<Self> {
         let path = PathBuf::from(s);

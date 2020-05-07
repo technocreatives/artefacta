@@ -67,9 +67,8 @@ dependencies = [
  "bidiff",
  "bipatch",
  "color-backtrace 0.3.0",
- "color-eyre",
  "env_logger",
- "eyre",
+ "erreur",
  "futures",
  "humansize",
  "log",
@@ -581,6 +580,14 @@ dependencies = [
  "log",
  "regex",
  "termcolor",
+]
+
+[[package]]
+name = "erreur"
+version = "0.1.0"
+dependencies = [
+ "color-eyre",
+ "eyre",
 ]
 
 [[package]]

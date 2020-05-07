@@ -1,6 +1,5 @@
-mod err;
+use erreur::{ensure, Context, Result};
 
-use crate::err::*;
 use std::{fs, path::PathBuf};
 use structopt::StructOpt;
 

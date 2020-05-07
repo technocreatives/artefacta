@@ -1,6 +1,7 @@
 #![allow(unused)]
 
-pub use crate::err::*;
+pub use erreur::{Context, Result};
+
 pub use assert_cmd::Command;
 pub use assert_fs::{prelude::*, TempDir};
 pub use predicates::prelude::*;

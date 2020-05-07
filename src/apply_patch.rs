@@ -1,4 +1,4 @@
-use crate::err::*;
+use erreur::{Context, Result};
 use std::{
     fs::File,
     io::{BufReader, Cursor, Read},

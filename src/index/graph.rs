@@ -1,5 +1,7 @@
 use super::{Build, Patch, Version};
-use crate::{err::*, paths, storage::Entry};
+use crate::{paths, storage::Entry};
+use erreur::{Context, Result, StdResult};
+
 use petgraph::graph::{DefaultIx, EdgeIndex, Graph, NodeIndex};
 use std::{collections::HashMap, convert::TryFrom, fs::ReadDir, io::Error as IoError};
 

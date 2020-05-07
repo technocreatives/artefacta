@@ -1,4 +1,4 @@
-use crate::err::*;
+use erreur::{ensure, Context, Result};
 use std::{convert::TryFrom, path::Path};
 
 use crate::index::Version;

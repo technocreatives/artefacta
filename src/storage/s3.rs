@@ -1,4 +1,4 @@
-use crate::err::*;
+use erreur::{ensure, Context, Report, Result};
 use rusoto_core::Region;
 use rusoto_s3::S3Client;
 use std::convert::TryFrom;
@@ -29,7 +29,7 @@ impl Bucket {
 }
 
 impl<'a> TryFrom<&'a Url> for Bucket {
-    type Error = color_eyre::Report;
+    type Error = Report;
 
     fn try_from(url: &Url) -> Result<Bucket> {
         ensure!(url.scheme() == "s3", "URI scheme has to be `s3`");
@@ -67,7 +67,7 @@ fn bucket_config_from_url() {
 }
 
 impl<'a> TryFrom<&'a Bucket> for S3Client {
-    type Error = color_eyre::Report;
+    type Error = Report;
 
     fn try_from(bucket: &'a Bucket) -> Result<S3Client> {
         let region = Region::Custom {
