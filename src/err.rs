@@ -26,13 +26,13 @@ where
     /// Wrap the error value with a new adhoc error
     fn context<D>(self, msg: D) -> StdResult<T, eyre::Report<C>>
     where
-        D: Display + Debug + Send + Sync + 'static;
+        D: Display + Send + Sync + 'static;
 
     /// Wrap the error value with a new adhoc error that is evaluated lazily
     /// only once an error does occur.
     fn with_context<D, F>(self, f: F) -> StdResult<T, eyre::Report<C>>
     where
-        D: Display + Debug + Send + Sync + 'static,
+        D: Display + Send + Sync + 'static,
         F: FnOnce() -> D;
 }
 
@@ -42,17 +42,17 @@ where
 {
     fn context<D>(self, msg: D) -> StdResult<T, eyre::Report<C>>
     where
-        D: Display + Debug + Send + Sync + 'static,
+        D: Display + Send + Sync + 'static,
     {
-        self.ok_or_else(|| eyre::Report::msg(msg))
+        self.ok_or_else(|| eyre::Report::new(NoneError {}).wrap_err(msg))
     }
 
     fn with_context<D, F>(self, msg: F) -> StdResult<T, eyre::Report<C>>
     where
-        D: Display + Debug + Send + Sync + 'static,
+        D: Display + Send + Sync + 'static,
         F: FnOnce() -> D,
     {
-        self.ok_or_else(|| eyre::Report::msg(msg()))
+        self.ok_or_else(|| eyre::Report::new(NoneError {}).wrap_err(msg()))
     }
 }
 
@@ -64,14 +64,14 @@ where
 {
     fn context<D>(self, msg: D) -> StdResult<T, eyre::Report<C>>
     where
-        D: Display + Debug + Send + Sync + 'static,
+        D: Display + Send + Sync + 'static,
     {
         self.wrap_err(msg)
     }
 
     fn with_context<D, F>(self, msg: F) -> StdResult<T, eyre::Report<C>>
     where
-        D: Display + Debug + Send + Sync + 'static,
+        D: Display + Send + Sync + 'static,
         F: FnOnce() -> D,
     {
         self.wrap_err_with(msg)
