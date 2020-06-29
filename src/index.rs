@@ -110,7 +110,15 @@ impl Index {
         log::info!("write patch {:?} to `{:?}`", path_name, patch_path);
 
         let mut patch = ZstdEncoder::new(File::create(&patch_path)?, 3)?;
-        bidiff::simple_diff(&old_build, &new_build, &mut patch)?;
+        bidiff::simple_diff_with_params(
+            &old_build,
+            &new_build,
+            &mut patch,
+            &bidiff::DiffParams {
+                sort_partitions: 4,
+                scan_chunk_size: Some(10_000_000),
+            },
+        )?;
         patch.finish()?;
 
         let patch_size = patch_path
