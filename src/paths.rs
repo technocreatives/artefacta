@@ -19,9 +19,11 @@ pub fn file_name(path: impl AsRef<Path>) -> Result<String> {
     let name = path_as_string(file_name)?;
 
     // get rid of pesky .tar suffixes
-    let name = name.trim_end_matches(".tar").to_string();
+    let name = name.trim_end_matches(".tar");
+    // get rid of pesky .patch suffixes
+    let name = name.trim_end_matches(".patch");
 
-    Ok(name)
+    Ok(name.to_string())
 }
 
 pub fn build_path_from_version(v: Version) -> Result<String> {
