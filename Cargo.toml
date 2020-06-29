@@ -35,6 +35,8 @@ async-read-progress = "0.1.0"
 tokio = { version = "0.2", features = ["rt-threaded", "io-util"] }
 futures = "0.3.4"
 
+git2 = { version = "0.13.6", default-features = false }
+
 [dev-dependencies]
 rand = "0.7.3"
 proptest = "0.10.0"
