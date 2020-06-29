@@ -108,8 +108,14 @@ impl PatchGraph {
                 .context("`patches` points to non-existing EdgeIndex")?,
             Entry::Vacant(e) => {
                 let patch = Patch::new(from.clone(), to.clone());
-                let prev_build = *self.builds.get(from).context("can't find prev build")?;
-                let next_build = *self.builds.get(to).context("can't find next build")?;
+                let prev_build = *self
+                    .builds
+                    .get(from)
+                    .with_context(|| format!("can't find prev build `{}` of `{}`", from, to))?;
+                let next_build = *self
+                    .builds
+                    .get(to)
+                    .with_context(|| format!("can't find next build `{}` of `{}`", to, from))?;
                 let idx = self.graph.add_edge(prev_build, next_build, patch);
                 e.insert(idx);
                 self.graph
