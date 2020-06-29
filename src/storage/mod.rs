@@ -8,6 +8,7 @@ pub use std::{
     path::{Path, PathBuf},
     str::FromStr,
     sync::Arc,
+    time::Duration,
 };
 use url::Url;
 
@@ -209,6 +210,7 @@ impl Storage {
                 }))
             }
             InnerStorage::S3(bucket) => {
+                use async_read_progress::*;
                 use rusoto_s3::{GetObjectRequest, S3Client, S3};
                 use tokio::io::AsyncReadExt;
 
@@ -226,17 +228,35 @@ impl Storage {
 
                 // TODO: Check this. Checksums are in format `{md5}[-{parts}]`.
                 let _checksum = result.e_tag.context("object has no checksum")?;
+                let size = result
+                    .content_length
+                    .map(|s| s as u64)
+                    .context("got an object with no size")?;
 
                 let mut stream = result
                     .body
                     .context("object without body")?
-                    .into_async_read();
+                    .into_async_read()
+                    .report_progress(Duration::from_secs(2), |bytes_read| {
+                        use humansize::{file_size_opts as options, FileSize};
+
+                        log::info!(
+                            "reading `{}`… {}/{}",
+                            key,
+                            bytes_read
+                                .file_size(options::BINARY)
+                                .expect("never negative"),
+                            size.file_size(options::BINARY).expect("never negative")
+                        )
+                    });
                 let mut body = Vec::new();
                 stream
                     .read_to_end(&mut body)
                     .await
                     .context("failed to read object content into buffer")
                     .note("S3 has bad days just like the rest of us")?;
+
+                log::info!("read `{}`.", key);
 
                 let entry = Entry {
                     storage: self.clone(),
