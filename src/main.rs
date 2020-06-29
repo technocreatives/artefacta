@@ -42,6 +42,8 @@ enum Command {
         from: Version,
         to: Version,
     },
+    /// Sync all new local files to remote store
+    Sync,
     Debug,
 }
 
@@ -72,6 +74,12 @@ async fn main() -> Result<()> {
     match args.cmd {
         Command::Debug => {
             dbg!(index);
+        }
+        Command::Sync => {
+            index
+                .push()
+                .await
+                .context("sync new local files to remote")?;
         }
         Command::Install {
             version: target_version,
