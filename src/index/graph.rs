@@ -49,8 +49,7 @@ impl PatchGraph {
             if entry.path.ends_with('/') {
                 continue;
             }
-            let (from, to) =
-                paths::patch_versions_from_path(&entry.path).context("Patch versions from path")?;
+            let Patch { from, to, .. } = Patch::from_path(&entry.path)?;
             self.add_patch(&from, &to, entry.clone(), location)
                 .with_context(|| format!("add patch `{}`", entry.path))?;
         }

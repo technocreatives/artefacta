@@ -404,8 +404,7 @@ impl Index {
             FileEntry::Inline(entry, ..) => Path::new(&entry.path).to_path_buf(),
         };
 
-        let (from, to) = paths::patch_versions_from_path(&path)?;
-        let patch = Patch::new(from.clone(), to.clone());
+        let patch = Patch::from_path(&path)?;
         let new_path = local.join(patch.to_string());
 
         self.local
@@ -417,7 +416,7 @@ impl Index {
             .context("create entry for new build file")?;
 
         self.patch_graph
-            .add_patch(&from, &to, entry, Location::Local)
+            .add_patch(&patch.from, &patch.to, entry, Location::Local)
             .with_context(|| format!("add patch `{}`", path.display()))?;
         Ok(())
     }
