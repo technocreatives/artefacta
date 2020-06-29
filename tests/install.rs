@@ -23,7 +23,7 @@ fn install_build_from_remote_directory() {
     );
 
     assert_eq!(
-        local.join("build2.tar.zst"),
+        local.join("build2.tar.zst").canonicalize().unwrap(),
         fs::read_link(&current).unwrap(),
         "symlink points to new build"
     );
@@ -51,7 +51,7 @@ fn upgrade_to_a_build_already_cached() {
 
     let current = local.join("current");
     assert_eq!(
-        local.join("build2.tar.zst"),
+        local.join("build2.tar.zst").canonicalize().unwrap(),
         fs::read_link(&current).unwrap(),
         "symlink points to new build"
     );
@@ -76,7 +76,7 @@ fn upgrade_to_new_build_without_patches() {
 
     let current = local.join("current");
     assert_eq!(
-        local.join("build2.tar.zst"),
+        local.join("build2.tar.zst").canonicalize().unwrap(),
         fs::read_link(&current).unwrap(),
         "symlink points to new build"
     );

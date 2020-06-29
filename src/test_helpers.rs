@@ -51,18 +51,25 @@ pub fn ls(path: impl AsRef<Path>) {
 }
 
 pub fn untar(archive_path: impl AsRef<Path>, target_dir: impl AsRef<Path>) {
+    let tar = if cfg!(target_os = "macos") {
+        "gtar"
+    } else {
+        "tar"
+    };
+
     assert!(predicate::path::is_dir().eval(target_dir.as_ref()));
 
-    let res = Command::new("tar")
+    let res = Command::new(tar)
         .arg("-Izstd")
         .arg("-xvf")
         .arg(archive_path.as_ref())
         .current_dir(target_dir.as_ref())
         .output()
-        .expect("tar");
+        .unwrap_or_else(|_| panic!("Could not run tar (spawn `{}` process)", tar));
 
     println!(
-        "> tar {}\n{}---",
+        "> {} {}\n{}---",
+        tar,
         archive_path.as_ref().display(),
         String::from_utf8_lossy(&res.stdout)
     );
