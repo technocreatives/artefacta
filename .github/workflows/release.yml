@@ -17,7 +17,7 @@ env:
 jobs:
   musl-build:
     runs-on: ubuntu-latest
-    container: ekidd/rust-musl-builder:${{ env.RUST_VERSION }}
+    container: ekidd/rust-musl-builder:1.44.1
     steps:
     - name: Fix Githubs
       run: sudo chmod -R 777 /__w
