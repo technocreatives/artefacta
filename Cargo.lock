@@ -61,6 +61,7 @@ dependencies = [
  "base64 0.12.3",
  "bidiff",
  "bipatch",
+ "chrono",
  "color-backtrace",
  "env_logger",
  "erreur",

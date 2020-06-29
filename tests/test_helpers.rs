@@ -21,3 +21,11 @@ pub fn artefacta(local: &Path, remote: &Path) -> Command {
     cmd.timeout(std::time::Duration::from_secs(10));
     cmd
 }
+
+pub fn run(cmd: &str, dir: impl AsRef<Path>) {
+    Command::new("bash")
+        .arg("-c")
+        .arg(cmd)
+        .current_dir(dir.as_ref())
+        .unwrap();
+}
