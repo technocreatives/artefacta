@@ -16,12 +16,10 @@ pub fn file_name(path: impl AsRef<Path>) -> Result<String> {
     let file_name = path
         .file_stem()
         .with_context(|| format!("no file stem for `{:?}`", path))?;
-    let mut name = path_as_string(file_name)?;
+    let name = path_as_string(file_name)?;
 
     // get rid of pesky .tar suffixes
-    if let Some(s) = name.strip_suffix(".tar") {
-        name = s.to_string();
-    }
+    let name = name.trim_end_matches(".tar").to_string();
 
     Ok(name)
 }
