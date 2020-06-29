@@ -26,13 +26,20 @@ impl fmt::Display for Version {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum InvalidVersion {}
+pub enum InvalidVersion {
+    ThreeDashes,
+}
 
 impl StdError for InvalidVersion {}
 
 impl fmt::Display for InvalidVersion {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Invalid version")
+        match self {
+            InvalidVersion::ThreeDashes => write!(
+                f,
+                "Invalid version format: `---` must not appear in version"
+            ),
+        }
     }
 }
 
@@ -40,7 +47,9 @@ impl FromStr for Version {
     type Err = InvalidVersion;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        // TODO: Validate for specific format
+        if s.contains("---") {
+            return Err(InvalidVersion::ThreeDashes);
+        }
         Ok(Version { data: s.into() })
     }
 }
@@ -59,4 +68,17 @@ impl<'a> TryFrom<&'a String> for Version {
     fn try_from(s: &String) -> Result<Self, Self::Error> {
         s.parse()
     }
+}
+
+#[test]
+fn versions_can_be_parsed() {
+    let _: Version = "v1.2.3".parse().unwrap();
+    let _: Version = "module-20200629".parse().unwrap();
+
+    let _ = Version::try_from("module-20200629").unwrap();
+
+    assert_eq!(
+        Version::try_from("module---20200629"),
+        Err(InvalidVersion::ThreeDashes)
+    );
 }

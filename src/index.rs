@@ -110,7 +110,15 @@ impl Index {
         log::info!("write patch {:?} to `{:?}`", path_name, patch_path);
 
         let mut patch = ZstdEncoder::new(File::create(&patch_path)?, 3)?;
-        bidiff::simple_diff(&old_build, &new_build, &mut patch)?;
+        bidiff::simple_diff_with_params(
+            &old_build,
+            &new_build,
+            &mut patch,
+            &bidiff::DiffParams {
+                sort_partitions: 4,
+                scan_chunk_size: Some(10_000_000),
+            },
+        )?;
         patch.finish()?;
 
         let patch_size = patch_path
@@ -396,8 +404,7 @@ impl Index {
             FileEntry::Inline(entry, ..) => Path::new(&entry.path).to_path_buf(),
         };
 
-        let (from, to) = paths::patch_versions_from_path(&path)?;
-        let patch = Patch::new(from.clone(), to.clone());
+        let patch = Patch::from_path(&path)?;
         let new_path = local.join(patch.to_string());
 
         self.local
@@ -409,7 +416,7 @@ impl Index {
             .context("create entry for new build file")?;
 
         self.patch_graph
-            .add_patch(&from, &to, entry, Location::Local)
+            .add_patch(&patch.from, &patch.to, entry, Location::Local)
             .with_context(|| format!("add patch `{}`", path.display()))?;
         Ok(())
     }

@@ -7,7 +7,7 @@ on:
       - v*
 
 env:
-  RUST_VERSION: 1.42.0
+  RUST_VERSION: 1.44.1
   CARGO_INCREMENTAL: 0
   RUSTUP_MAX_RETRIES: 10
   CARGO_NET_RETRY: 10
@@ -17,7 +17,7 @@ env:
 jobs:
   musl-build:
     runs-on: ubuntu-latest
-    container: ekidd/rust-musl-builder:1.42.0
+    container: ekidd/rust-musl-builder:${{ env.RUST_VERSION }}
     steps:
     - name: Fix Githubs
       run: sudo chmod -R 777 /__w

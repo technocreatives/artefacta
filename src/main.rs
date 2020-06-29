@@ -37,6 +37,13 @@ enum Command {
         #[structopt(flatten)]
         build: AddBuild,
     },
+    /// Create a patch from one version to another
+    CreatePatch {
+        from: Version,
+        to: Version,
+    },
+    /// Sync all new local files to remote store
+    Sync,
     Debug,
 }
 
@@ -47,7 +54,7 @@ struct AddBuild {
     /// Upload to remote storage
     #[structopt(long = "upload")]
     upload: bool,
-    /// Upload to remote storage
+    /// Calculate path from this build version
     #[structopt(long = "calc-patch-from")]
     calculate_patch_from: Option<Version>,
 }
@@ -67,6 +74,12 @@ async fn main() -> Result<()> {
     match args.cmd {
         Command::Debug => {
             dbg!(index);
+        }
+        Command::Sync => {
+            index
+                .push()
+                .await
+                .context("sync new local files to remote")?;
         }
         Command::Install {
             version: target_version,
@@ -166,6 +179,11 @@ async fn main() -> Result<()> {
 
             tmp.close()
                 .context("could not clean up temporary directory")?;
+        }
+        Command::CreatePatch { from, to } => {
+            index.get_build(from.clone()).await?;
+            index.get_build(to.clone()).await?;
+            index.calculate_patch(from.clone(), to.clone()).await?;
         }
         Command::Add(add) => add
             .add_to(&mut index)
