@@ -79,6 +79,26 @@ fn add_directory_by_packaging_it_as_a_tar_zst() {
 }
 
 #[test]
+fn add_package_with_invalid_version() {
+    let (local, remote) = init();
+    let (local, remote) = (local.path(), remote.path());
+
+    let build_dir = tempdir().unwrap();
+    let build_dir = build_dir.path();
+
+    fs::write(build_dir.join("lib.rs"), b"fn main() { /* code here */ }").unwrap();
+    fs::write(build_dir.join("Cargo.toml"), b"[package]").unwrap();
+
+    artefacta(local, remote)
+        .arg("add-package")
+        .arg("build-1-2---3")
+        .arg(&build_dir)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("Invalid version format"));
+}
+
+#[test]
 fn upload_a_build() {
     let (local, remote) = init();
     let (local, remote) = (local.path(), remote.path());
