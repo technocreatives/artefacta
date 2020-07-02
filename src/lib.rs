@@ -12,5 +12,8 @@ pub use packaging::package;
 mod storage;
 pub use storage::Storage;
 
+mod compression;
+pub use compression::compress;
+
 #[cfg(test)]
 pub(crate) mod test_helpers;

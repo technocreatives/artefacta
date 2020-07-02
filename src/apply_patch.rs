@@ -27,8 +27,7 @@ pub fn apply_patch(archive: impl AsRef<Path>, patch: impl AsRef<Path>) -> Result
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::*;
-    use zstd::stream::write::Encoder as ZstdEncoder;
+    use crate::{compress, test_helpers::*};
 
     #[test]
     fn roundtrip() -> Result<()> {
@@ -42,7 +41,7 @@ mod tests {
 
         let patch_1_2 = dir.path().join("1-2.patch.zst");
 
-        let mut patch = ZstdEncoder::new(fs::File::create(&patch_1_2)?, 3)?;
+        let mut patch = compress(fs::File::create(&patch_1_2)?)?;
         bidiff::simple_diff(&content1, &content2, &mut patch)?;
         patch.finish()?;
 

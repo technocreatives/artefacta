@@ -3,7 +3,7 @@ use erreur::{ensure, Context, Help, Result};
 use std::{fs, path::PathBuf};
 use structopt::StructOpt;
 
-use artefacta::{package, paths, ArtefactIndex, Storage, Version};
+use artefacta::{compress, package, paths, ArtefactIndex, Storage, Version};
 
 #[derive(Debug, StructOpt)]
 struct Cli {
@@ -137,7 +137,6 @@ async fn main() -> Result<()> {
         }
         Command::AddPackage { version, build } => {
             use tempfile::tempdir;
-            use zstd::stream::write::Encoder as ZstdEncoder;
 
             let build_path = build
                 .path
@@ -158,7 +157,7 @@ async fn main() -> Result<()> {
 
             let archive = fs::File::create(&archive_path)
                 .with_context(|| format!("cannot create file `{}`", archive_path.display()))?;
-            let mut archive = ZstdEncoder::new(archive, 3)
+            let mut archive = compress(archive)
                 .with_context(|| format!("cannot create zstd file `{}`", archive_path.display()))?;
             package(&build_path, &mut archive)
                 .with_context(|| format!("package archive `{}`", archive_path.display()))?;
