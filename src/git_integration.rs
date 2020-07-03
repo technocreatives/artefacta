@@ -48,10 +48,14 @@ pub fn find_tags_to_patch(current: &str, tags: &[String]) -> Result<Vec<String>>
 
     let mut to_patch = vec![];
 
-    if let Some(x) = current.iter().rev().next().and_then(dec) {
-        let mut prev = current.clone();
+    if let Some(x) = current.iter().last().and_then(dec) {
         let pos = current.len() - 1;
-        prev[pos] = x;
+        let prev = {
+            let mut prev = current.clone();
+            prev[pos] = x;
+            prev
+        };
+
         if let Some((idx, _)) = parsed_tags
             .iter()
             .enumerate()
@@ -64,9 +68,13 @@ pub fn find_tags_to_patch(current: &str, tags: &[String]) -> Result<Vec<String>>
     }
 
     if let Some(x) = current.iter().rev().nth(1).and_then(dec) {
-        let mut prev = current.clone();
         let pos = current.len() - 2;
-        prev[pos] = x;
+        let prev = {
+            let mut prev = current.clone();
+            prev[pos] = x;
+            prev
+        };
+
         if let Some((idx, _)) = parsed_tags
             .iter()
             .enumerate()
@@ -83,13 +91,63 @@ pub fn find_tags_to_patch(current: &str, tags: &[String]) -> Result<Vec<String>>
 }
 
 #[test]
-fn tags_to_patch_from() {
+fn tags_to_patch_from_works() {
     let tags = vec![
         "IL40.0.0".to_string(),
         "IL40.0.1".to_string(),
         "IL40.1.0".to_string(),
         "IL40.2.17".to_string(),
         "IL40.2.18".to_string(),
+    ];
+    let current_tag = "IL40.2.19";
+    let patch_these = find_tags_to_patch(current_tag, &tags).unwrap();
+    assert_eq!(
+        patch_these,
+        vec!["IL40.2.18".to_string(), "IL40.1.0".to_string()]
+    );
+}
+
+#[test]
+fn tags_to_patch_from_1() {
+    let tags = vec![];
+    let current_tag = "IL40.2.19";
+    let patch_these = find_tags_to_patch(current_tag, &tags).unwrap();
+    assert!(patch_these.is_empty());
+}
+
+#[test]
+fn tags_to_patch_from_2() {
+    let tags = vec!["garbage".to_string(), "v1.5-1.beta.1".to_string()];
+    let current_tag = "v2.0.0";
+    let patch_these = find_tags_to_patch(current_tag, &tags).unwrap();
+    assert!(patch_these.is_empty());
+}
+
+#[test]
+fn tags_to_patch_from_3() {
+    let tags = vec![
+        "IL40.0.0".to_string(),
+        "IL40.0.1".to_string(),
+        "IL40.1.x".to_string(),
+        "IL40.2.17".to_string(),
+        "IL40.2.18".to_string(),
+    ];
+    let current_tag = "IL40.2.19";
+    let patch_these = find_tags_to_patch(current_tag, &tags).unwrap();
+    assert_eq!(
+        patch_these,
+        vec!["IL40.2.18".to_string(), "IL40.1.x".to_string()]
+    );
+}
+
+#[test]
+fn tags_to_patch_from_4() {
+    let tags = vec![
+        "IL40.0.1".to_string(),
+        "IL40.1.0".to_string(),
+        "IL40.2.17".to_string(),
+        "IL40.2.18".to_string(),
+        "IL40.x.0".to_string(),
     ];
     let current_tag = "IL40.2.19";
     let patch_these = find_tags_to_patch(current_tag, &tags).unwrap();
