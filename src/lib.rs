@@ -15,5 +15,7 @@ pub use storage::Storage;
 mod compression;
 pub use compression::compress;
 
+pub(crate) mod git_integration;
+
 #[cfg(test)]
 pub(crate) mod test_helpers;
