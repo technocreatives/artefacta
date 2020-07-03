@@ -3,9 +3,9 @@ use smol_str::SmolStr;
 
 #[derive(Debug, Clone)]
 pub struct Tag {
-    name: String,
-    time: chrono::NaiveDateTime,
-    id: git2::Oid,
+    pub name: String,
+    pub time: chrono::NaiveDateTime,
+    pub id: git2::Oid,
 }
 
 pub fn get_tags(repo: &git2::Repository) -> Result<Vec<Tag>> {
