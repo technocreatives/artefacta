@@ -47,3 +47,7 @@ predicates = "1.0.4"
 
 [workspace]
 members = [".", "erreur"]
+
+# some of our tests are quite slow without optimizations
+[profile.dev.package."*"]
+opt-level = 3
