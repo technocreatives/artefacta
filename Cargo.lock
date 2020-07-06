@@ -62,7 +62,6 @@ dependencies = [
  "bidiff",
  "bipatch",
  "chrono",
- "color-backtrace",
  "env_logger",
  "erreur",
  "futures",
@@ -343,25 +342,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "color-backtrace"
-version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5356ae4e07c994a2763226a8a991e5829ded78ac23f8ac88b3f3e69970db5163"
-dependencies = [
- "atty",
- "backtrace",
- "termcolor",
-]
-
-[[package]]
 name = "color-eyre"
-version = "0.4.2"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "652c9d73a1efc176e97e8acf29e9d7055a35ee390eb4f996c75e1b7671f53e95"
+checksum = "2c72672243200c10efdf22867bc2e156ac4f27852572a99f5fbbe18f0c417d76"
 dependencies = [
  "ansi_term",
  "backtrace",
- "color-backtrace",
  "eyre",
  "indenter",
  "once_cell",
@@ -542,11 +529,12 @@ dependencies = [
 
 [[package]]
 name = "eyre"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "303f5557cec6943e7d16db154bfd2a39e91ce266c6f74c2ba2af189da47db3d2"
+checksum = "b0f9683839e579a53258d377fcc0073ca0bf2042ac5e6c60a598069e64403a6d"
 dependencies = [
  "indenter",
+ "once_cell",
 ]
 
 [[package]]
@@ -1895,9 +1883,9 @@ checksum = "c111b5bd5695e56cffe5129854aa230b39c93a305372fdbb2668ca2394eea9f8"
 
 [[package]]
 name = "smol_str"
-version = "0.1.15"
+version = "0.1.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "34836c9a295c62c2ce3514471117c5cb269891e8421b2aafdd910050576c4d8b"
+checksum = "2f7909a1d8bc166a862124d84fdc11bda0ea4ed3157ccca662296919c2972db1"
 
 [[package]]
 name = "socket2"

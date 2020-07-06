@@ -74,7 +74,7 @@ struct AddBuild {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    color_backtrace::install();
+    erreur::install_panic_handler()?;
 
     let args = Cli::from_args();
     setup_logging(args.verbose);
