@@ -47,8 +47,11 @@ enum Command {
     CreatePatch { from: Version, to: Version },
     /// Create patches by looking at the git repo
     AutoPatch {
+        /// Git repository in which to look for tags
         #[structopt(long, default_value)]
         repo_root: WorkingDir,
+        /// Version to created patches to
+        #[structopt(env = "CI_COMMIT_REF_NAME")]
         current: Version,
     },
     /// Sync all new local files to remote store
@@ -59,7 +62,7 @@ enum Command {
 
 #[derive(Debug, StructOpt)]
 struct AddBuild {
-    /// Version of build
+    /// Path to the build
     path: PathBuf,
     /// Upload to remote storage
     #[structopt(long = "upload")]
