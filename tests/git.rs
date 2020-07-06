@@ -2,34 +2,59 @@ mod test_helpers;
 use test_helpers::*;
 
 #[test]
-fn find_related_tags_in_repo() {
+fn auto_patch_from_git_repo() {
+    let (local, remote) = init();
+    let (local, remote) = (local.path(), remote.path());
     let repo = tempdir().unwrap();
-    run("git init .", &repo.path());
-    run("git config user.email 'git-test@example.com'", &repo.path());
-    run("git config user.name 'Author Name'", &repo.path());
+    let repo = repo.path();
 
-    run("echo foo > wtf", &repo.path());
-    run("git add .", &repo.path());
-    run("git commit -m 'bump build1'", &repo.path());
-    run("git tag build1", &repo.path());
+    run("git init .", &repo);
+    run("git config user.email 'git-test@example.com'", &repo);
+    run("git config user.name 'Author Name'", &repo);
 
-    run("echo bar > wtf", &repo.path());
-    run("git add .", &repo.path());
-    run("git commit -m 'bump build2'", &repo.path());
-    run("git tag build2", &repo.path());
+    run("mkdir src", &repo);
+    run("echo foo > src/wtf", &repo);
+    run("git add .", &repo);
+    run("git commit -m 'bump 0.1.0'", &repo);
+    run("git tag 0.1.0", &repo);
+    artefacta(local, remote)
+        .arg("add-package")
+        .arg("0.1.0")
+        .arg(repo.join("src"))
+        .succeeds();
 
-    run("echo baz > wtf", &repo.path());
-    run("git add .", &repo.path());
-    run("git commit -m 'bump build3'", &repo.path());
-    run("git tag build3", &repo.path());
+    run("echo bar > src/wtf", &repo);
+    run("git add .", &repo);
+    run("git commit -m 'bump 0.1.1'", &repo);
+    run("git tag 0.1.1", &repo);
+    artefacta(local, remote)
+        .arg("add-package")
+        .arg("0.1.1")
+        .arg(repo.join("src"))
+        .succeeds();
+    artefacta(local, remote)
+        .arg("auto-patch")
+        .arg("--repo-root")
+        .arg(&repo)
+        .arg("0.1.1")
+        .succeeds();
 
-    ls(&repo.path());
+    run("echo baz > src/wtf", &repo);
+    run("git add .", &repo);
+    run("git commit -m 'bump 0.2.0'", &repo);
+    run("git tag 0.2.0", &repo);
+    artefacta(local, remote)
+        .arg("add-package")
+        .arg("0.2.0")
+        .arg(repo.join("src"))
+        .succeeds();
+    artefacta(local, remote)
+        .arg("auto-patch")
+        .arg("--repo-root")
+        .arg(&repo)
+        .arg("0.2.0")
+        .succeeds();
 
-    run("git tag -l", &repo.path());
-
-    let r = git2::Repository::discover(&repo.path()).unwrap();
-
-    // let mut tags = get_tags(&r).unwrap();
-    // tags.sort_by(|a, b| a.time.cmp(&b.time));
-    // dbg!(tags);
+    run("git tag -l", &repo);
+    ls(&local);
 }

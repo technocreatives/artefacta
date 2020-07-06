@@ -211,6 +211,7 @@ async fn main() -> Result<()> {
                 .iter()
                 .map(|tag| tag.name.clone())
                 .collect::<Vec<String>>();
+            log::trace!("found these tags in repo: {:?}", tag_names);
             ensure!(
                 tag_names.iter().any(|tag| tag.as_str() == current.as_str()),
                 "given version `{}` is not a tag in the repository (`{}`)",
