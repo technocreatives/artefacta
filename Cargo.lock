@@ -524,7 +524,6 @@ name = "erreur"
 version = "0.1.0"
 dependencies = [
  "color-eyre",
- "eyre",
 ]
 
 [[package]]
