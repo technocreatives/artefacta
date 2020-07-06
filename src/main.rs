@@ -1,10 +1,16 @@
-use erreur::{ensure, Context, Help, Result};
-
-use std::{fs, path::PathBuf};
+use erreur::{ensure, Context, Help, Result, StdResult};
+use std::{
+    convert::{Infallible, TryFrom},
+    fmt, fs,
+    path::PathBuf,
+    str::FromStr,
+};
 use structopt::StructOpt;
 
-use artefacta::{package, paths, ArtefactIndex, Storage, Version};
+use artefacta::{compress, package, paths, ArtefactIndex, Storage, Version};
+pub(crate) mod git;
 
+/// Manage software builds in different versions across local and remote storage
 #[derive(Debug, StructOpt)]
 struct Cli {
     /// Path to local storage directory
@@ -38,12 +44,16 @@ enum Command {
         build: AddBuild,
     },
     /// Create a patch from one version to another
-    CreatePatch {
-        from: Version,
-        to: Version,
+    CreatePatch { from: Version, to: Version },
+    /// Create patches by looking at the git repo
+    AutoPatch {
+        #[structopt(long, default_value)]
+        repo_root: WorkingDir,
+        current: Version,
     },
     /// Sync all new local files to remote store
     Sync,
+    /// Build index (from local and remote data) and print it
     Debug,
 }
 
@@ -137,7 +147,6 @@ async fn main() -> Result<()> {
         }
         Command::AddPackage { version, build } => {
             use tempfile::tempdir;
-            use zstd::stream::write::Encoder as ZstdEncoder;
 
             let build_path = build
                 .path
@@ -158,7 +167,7 @@ async fn main() -> Result<()> {
 
             let archive = fs::File::create(&archive_path)
                 .with_context(|| format!("cannot create file `{}`", archive_path.display()))?;
-            let mut archive = ZstdEncoder::new(archive, 3)
+            let mut archive = compress(archive)
                 .with_context(|| format!("cannot create zstd file `{}`", archive_path.display()))?;
             package(&build_path, &mut archive)
                 .with_context(|| format!("package archive `{}`", archive_path.display()))?;
@@ -184,6 +193,61 @@ async fn main() -> Result<()> {
             index.get_build(from.clone()).await?;
             index.get_build(to.clone()).await?;
             index.calculate_patch(from.clone(), to.clone()).await?;
+        }
+        Command::AutoPatch {
+            repo_root: WorkingDir(repo_root),
+            current,
+        } => {
+            index.get_build(current.clone()).await?;
+
+            let repo = git2::Repository::discover(&repo_root)
+                .with_context(|| format!("can't open repository at `{}`", repo_root.display()))
+                .suggestion(
+                    "If this path looks wrong, you can overwrite it with `--repo-root=<PATH>`",
+                )?;
+            log::debug!("opened git repo {}", repo_root.display());
+            let tags = git::get_tags(&repo).context("can't get tags from repo")?;
+            let tag_names = tags
+                .iter()
+                .map(|tag| tag.name.clone())
+                .collect::<Vec<String>>();
+            log::trace!("found these tags in repo: {:?}", tag_names);
+            ensure!(
+                tag_names.iter().any(|tag| tag.as_str() == current.as_str()),
+                "given version `{}` is not a tag in the repository (`{}`)",
+                current,
+                repo_root.display()
+            );
+
+            let to_patch = git::find_tags_to_patch(current.as_str(), &tag_names)
+                .context("can't find version to create patches for")?;
+            log::info!("will create patches from these versions: {:?}", to_patch);
+
+            let mut failed = false;
+            for tag in &to_patch {
+                if let Err(e) = get_and_patch(&mut index, tag, current.clone()).await {
+                    log::error!("could not create patch from tag {}: {:?}", tag, e);
+                    failed = true;
+                } else {
+                    log::info!("create patch `{}` -> `{}`", tag, current);
+                }
+            }
+            if failed {
+                log::error!("failed to create patches");
+                std::process::exit(1);
+            }
+
+            async fn get_and_patch(
+                index: &mut ArtefactIndex,
+                tag: &str,
+                to: Version,
+            ) -> Result<()> {
+                let version = Version::try_from(tag)
+                    .with_context(|| format!("cant' parse tag `{}` as version", tag))?;
+                index.get_build(version.clone()).await?;
+                index.calculate_patch(version.clone(), to.clone()).await?;
+                Ok(())
+            }
         }
         Command::Add(add) => add
             .add_to(&mut index)
@@ -247,4 +311,27 @@ fn setup_logging(verbose: bool) {
     }
 
     log.init();
+}
+
+#[derive(Debug, Clone)]
+struct WorkingDir(PathBuf);
+
+impl Default for WorkingDir {
+    fn default() -> Self {
+        WorkingDir(std::env::current_dir().expect("cannot access current working directory"))
+    }
+}
+
+impl FromStr for WorkingDir {
+    type Err = Infallible;
+
+    fn from_str(s: &str) -> StdResult<Self, Infallible> {
+        Ok(WorkingDir(s.into()))
+    }
+}
+
+impl fmt::Display for WorkingDir {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0.display())
+    }
 }

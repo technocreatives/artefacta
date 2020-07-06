@@ -97,13 +97,11 @@ fn add_file<W: Write>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_helpers::*;
+    use crate::{compress, test_helpers::*};
     use proptest::prelude::*;
 
     #[test]
     fn archive_a_file() {
-        use zstd::stream::write::Encoder as ZstdEncoder;
-
         logger();
 
         let tmp = tempdir().unwrap();
@@ -112,7 +110,7 @@ mod tests {
         let binary = tmp.child("do-the-work.sh");
         binary.write_str("#! /bin/sh\necho 'Done!'").unwrap();
 
-        let mut output = ZstdEncoder::new(fs::File::create(&archive.path()).unwrap(), 3).unwrap();
+        let mut output = compress(fs::File::create(&archive.path()).unwrap()).unwrap();
         package(&binary.path(), &mut output).expect("package");
         output.finish().unwrap();
 
@@ -129,8 +127,6 @@ mod tests {
 
     #[test]
     fn archive_with_long_paths() {
-        use zstd::stream::write::Encoder as ZstdEncoder;
-
         let tmp = tempdir().unwrap();
         let long_path = "StandaloneLinux64/What-in-the-actual-Hell/Managed/Unity.RenderPipelines.ShaderGraph.ShaderGraphLibrary.dll";
         tmp.child(long_path).write_str("archive me").unwrap();
@@ -138,7 +134,7 @@ mod tests {
         let target = tempdir().unwrap();
         let archive = target.child("archive.tar.zst");
 
-        let mut output = ZstdEncoder::new(fs::File::create(archive.path()).unwrap(), 3).unwrap();
+        let mut output = compress(fs::File::create(archive.path()).unwrap()).unwrap();
         package(tmp.path(), &mut output).expect("package");
         output.finish().unwrap();
 
@@ -155,8 +151,6 @@ mod tests {
     #[cfg(unix)] // only tests POSIX ACLs
     fn archive_keeps_permission_bits() {
         use std::os::unix::fs::PermissionsExt;
-        use zstd::stream::write::Encoder as ZstdEncoder;
-
         let tmp = tempdir().unwrap();
         let archive = tmp.child("archive.tar.zst");
 
@@ -166,7 +160,7 @@ mod tests {
         let read_and_execute = fs::Permissions::from_mode(0o100555);
         fs::set_permissions(binary.path(), read_and_execute.clone()).unwrap();
 
-        let mut output = ZstdEncoder::new(fs::File::create(archive.path()).unwrap(), 3).unwrap();
+        let mut output = compress(fs::File::create(archive.path()).unwrap()).unwrap();
         package(binary.path(), &mut output).expect("package");
         output.finish().unwrap();
 
@@ -190,8 +184,6 @@ mod tests {
 
     #[test]
     fn archive_is_fine() {
-        use zstd::stream::write::Encoder as ZstdEncoder;
-
         let tmp = tempdir().expect("tempdir");
         let archive = tmp.child("archive.tar.zst");
         let src = tmp.child("src");
@@ -199,7 +191,7 @@ mod tests {
         src.child("Cargo.toml").write_str("[package]").unwrap();
         src.child("main.rs").write_str("fn main() {}").unwrap();
 
-        let mut output = ZstdEncoder::new(fs::File::create(archive.path()).unwrap(), 3).unwrap();
+        let mut output = compress(fs::File::create(archive.path()).unwrap()).unwrap();
         package(src.path(), &mut output).expect("package");
         output.finish().unwrap();
 

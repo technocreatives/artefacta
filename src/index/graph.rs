@@ -1,6 +1,6 @@
 use super::{Build, Patch, Version};
 use crate::{paths, storage::Entry};
-use erreur::{Context, Result, StdResult};
+use erreur::{Context, Help, Result, StdResult};
 
 use petgraph::graph::{DefaultIx, EdgeIndex, Graph, NodeIndex};
 use std::{collections::HashMap, convert::TryFrom, fs::ReadDir, io::Error as IoError};
@@ -111,11 +111,13 @@ impl PatchGraph {
                 let prev_build = *self
                     .builds
                     .get(from)
-                    .with_context(|| format!("can't find prev build `{}` of `{}`", from, to))?;
+                    .with_context(|| format!("can't find prev build `{}` of `{}`", from, to))
+                    .note("do your file names follow the pattern artefacta expects?")?;
                 let next_build = *self
                     .builds
                     .get(to)
-                    .with_context(|| format!("can't find next build `{}` of `{}`", to, from))?;
+                    .with_context(|| format!("can't find next build `{}` of `{}`", to, from))
+                    .note("do your file names follow the pattern artefacta expects?")?;
                 let idx = self.graph.add_edge(prev_build, next_build, patch);
                 e.insert(idx);
                 self.graph

@@ -9,7 +9,6 @@ use std::{
     io::{self, BufReader, Read},
     path::Path,
 };
-use zstd::stream::write::Encoder as ZstdEncoder;
 
 mod build;
 pub use build::Build;
@@ -109,7 +108,7 @@ impl Index {
         let patch_path = local.join(path_name.to_string() + ".zst");
         log::info!("write patch {:?} to `{:?}`", path_name, patch_path);
 
-        let mut patch = ZstdEncoder::new(File::create(&patch_path)?, 3)?;
+        let mut patch = crate::compress(File::create(&patch_path)?)?;
         bidiff::simple_diff_with_params(
             &old_build,
             &new_build,
@@ -250,13 +249,9 @@ impl Index {
         let build_temp_path = build_root.join(&build_temp_name);
         let build_real_path = build_root.join(&build_real_name);
 
-        let mut build_file = ZstdEncoder::new(
-            File::create(&build_temp_path).with_context(|| {
-                format!("create new build file `{}`", build_temp_path.display())
-            })?,
-            3,
-        )
-        .context("zstd writer for new build")?;
+        let build_file = File::create(&build_temp_path)
+            .with_context(|| format!("create new build file `{}`", build_temp_path.display()))?;
+        let mut build_file = crate::compress(build_file).context("zstd writer for new build")?;
         let mut patch_data =
             apply_patch(&source_build.path, &patch_file.path).context("apply patch")?;
 

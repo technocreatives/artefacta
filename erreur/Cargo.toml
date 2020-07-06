@@ -6,4 +6,4 @@ edition = "2018"
 
 [dependencies]
 eyre = "0.5"
-color-eyre = "0.4"
+color-eyre = { version = "0.4", default-features = false }
