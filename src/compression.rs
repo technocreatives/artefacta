@@ -1,15 +1,22 @@
 use erreur::{Context, Result};
-use std::{env, io::Write};
-use zstd::stream::write::Encoder as ZstdEncoder;
+use std::{
+    env,
+    io::{Read, Write},
+};
+use zstd::stream::{decode_all, write::Encoder as ZstdEncoder};
 
 pub fn compress<W: Write>(w: W) -> Result<ZstdEncoder<W>> {
     ZstdEncoder::new(w, compression_level()).context("Can't instantiate ZSTD encoder")
 }
 
+pub fn decompress<R: Read>(r: R) -> Result<Vec<u8>> {
+    decode_all(r).context("Can't read zstd compressed file")
+}
+
 const LEVEL_VAR: &str = "ARTEFACTA_COMPRESSION_LEVEL";
 
 #[cfg(test)]
-const DEFAULT_LEVEL: i32 = 10;
+const DEFAULT_LEVEL: i32 = 14;
 
 #[cfg(not(test))]
 const DEFAULT_LEVEL: i32 = 1;

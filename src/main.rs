@@ -7,8 +7,7 @@ use std::{
 };
 use structopt::StructOpt;
 
-use artefacta::{compress, package, paths, ArtefactIndex, Storage, Version};
-pub(crate) mod git;
+use artefacta::{compress, git, package, paths, ArtefactIndex, Storage, Version};
 
 /// Manage software builds in different versions across local and remote storage
 #[derive(Debug, StructOpt)]
@@ -53,6 +52,10 @@ enum Command {
         /// Version to created patches to
         #[structopt(env = "CI_COMMIT_REF_NAME")]
         current: Version,
+        /// Prefix for finding builds, used like "$prefix$tag". When setting
+        /// this, omit the prefix from the current flag.
+        #[structopt(long, default_value)]
+        prefix: String,
     },
     /// Sync all new local files to remote store
     Sync,
@@ -200,8 +203,17 @@ async fn main() -> Result<()> {
         Command::AutoPatch {
             repo_root: WorkingDir(repo_root),
             current,
+            prefix,
         } => {
-            index.get_build(current.clone()).await?;
+            let current_build =
+                Version::try_from(&format!("{}{}", prefix, current)).with_context(|| {
+                    format!(
+                        "given current version name is not valid with given prefix `{}`",
+                        prefix
+                    )
+                })?;
+            log::debug!("current version incl. given prefix is {}", current_build);
+            index.get_build(current_build.clone()).await?;
 
             let repo = git2::Repository::discover(&repo_root)
                 .with_context(|| format!("can't open repository at `{}`", repo_root.display()))
@@ -215,12 +227,6 @@ async fn main() -> Result<()> {
                 .map(|tag| tag.name.clone())
                 .collect::<Vec<String>>();
             log::trace!("found these tags in repo: {:?}", tag_names);
-            ensure!(
-                tag_names.iter().any(|tag| tag.as_str() == current.as_str()),
-                "given version `{}` is not a tag in the repository (`{}`)",
-                current,
-                repo_root.display()
-            );
 
             let to_patch = git::find_tags_to_patch(current.as_str(), &tag_names)
                 .context("can't find version to create patches for")?;
@@ -228,11 +234,12 @@ async fn main() -> Result<()> {
 
             let mut failed = false;
             for tag in &to_patch {
-                if let Err(e) = get_and_patch(&mut index, tag, current.clone()).await {
+                let tag = format!("{}{}", prefix, tag);
+                if let Err(e) = get_and_patch(&mut index, &tag, current_build.clone()).await {
                     log::error!("could not create patch from tag {}: {:?}", tag, e);
                     failed = true;
                 } else {
-                    log::info!("create patch `{}` -> `{}`", tag, current);
+                    log::info!("patch `{}` -> `{}`", tag, current_build);
                 }
             }
             if failed {
@@ -245,8 +252,8 @@ async fn main() -> Result<()> {
                 tag: &str,
                 to: Version,
             ) -> Result<()> {
-                let version = Version::try_from(tag)
-                    .with_context(|| format!("cant' parse tag `{}` as version", tag))?;
+                let version = index.get_build_for_tag(tag)?;
+                log::debug!("source version: picked {} from tag {}", version, tag);
                 index.get_build(version.clone()).await?;
                 index.calculate_patch(version.clone(), to.clone()).await?;
                 Ok(())
@@ -307,7 +314,10 @@ fn setup_logging(verbose: bool) {
     if verbose {
         log.filter(None, log::LevelFilter::Info)
             .filter(Some("artefacta"), log::LevelFilter::Debug);
-    };
+    } else {
+        log.filter(None, log::LevelFilter::Warn)
+            .filter(Some("artefacta"), log::LevelFilter::Info);
+    }
 
     if let Ok(s) = std::env::var("RUST_LOG") {
         log.parse_filters(&s);

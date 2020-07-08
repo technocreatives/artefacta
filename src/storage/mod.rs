@@ -249,6 +249,8 @@ impl Storage {
                             size.file_size(options::BINARY).expect("never negative")
                         )
                     });
+
+                log::debug!("fetching `{}` from S3", key);
                 let mut body = Vec::new();
                 stream
                     .read_to_end(&mut body)
@@ -256,7 +258,7 @@ impl Storage {
                     .context("failed to read object content into buffer")
                     .note("S3 has bad days just like the rest of us")?;
 
-                log::info!("read `{}`.", key);
+                log::info!("downloaded `{}` from S3", key);
 
                 let entry = Entry {
                     storage: self.clone(),
