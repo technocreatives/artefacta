@@ -29,19 +29,19 @@ pub fn get_tags(repo: &git2::Repository) -> Result<Vec<Tag>> {
         .collect()
 }
 
+pub fn tag_to_slice(tag: &str) -> Vec<SmolStr> {
+    tag.to_lowercase()
+        .split(|c| c == '.' || c == '-')
+        .map(SmolStr::from)
+        .collect()
+}
+
 /// assume versions are in format `….c.b.a` (or `…-c-b-a`)
 pub fn find_tags_to_patch(current: &str, tags: &[String]) -> Result<Vec<String>> {
     fn dec(x: &SmolStr) -> Option<SmolStr> {
         let num = x.parse::<u32>().ok()?;
         let prev = num.checked_sub(1)?;
         Some(SmolStr::from(prev.to_string()))
-    }
-
-    fn tag_to_slice(tag: &str) -> Vec<SmolStr> {
-        tag.to_lowercase()
-            .split(|c| c == '.' || c == '-')
-            .map(SmolStr::from)
-            .collect()
     }
 
     let parsed_tags = tags.iter().map(|tag| tag_to_slice(tag)).collect::<Vec<_>>();

@@ -228,12 +228,6 @@ async fn main() -> Result<()> {
                 .map(|tag| tag.name.clone())
                 .collect::<Vec<String>>();
             log::trace!("found these tags in repo: {:?}", tag_names);
-            ensure!(
-                tag_names.iter().any(|tag| tag.as_str() == current.as_str()),
-                "given version `{}` is not a tag in the repository (`{}`)",
-                current,
-                repo_root.display()
-            );
 
             let to_patch = git::find_tags_to_patch(current.as_str(), &tag_names)
                 .context("can't find version to create patches for")?;
@@ -259,8 +253,7 @@ async fn main() -> Result<()> {
                 tag: &str,
                 to: Version,
             ) -> Result<()> {
-                let version = Version::try_from(tag)
-                    .with_context(|| format!("cant' parse tag `{}` as version", tag))?;
+                let version = index.get_build_for_tag(tag)?;
                 index.get_build(version.clone()).await?;
                 index.calculate_patch(version.clone(), to.clone()).await?;
                 Ok(())

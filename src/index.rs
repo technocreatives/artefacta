@@ -350,6 +350,16 @@ impl Index {
             .context("fetch newly added local build")
     }
 
+    pub fn get_build_for_tag(&self, tag: &str) -> Result<Version> {
+        let parsed_tag = crate::git::tag_to_slice(tag);
+        self.patch_graph
+            .builds
+            .keys()
+            .find(|build| crate::git::tag_to_slice(build.as_str()) == parsed_tag)
+            .cloned()
+            .with_context(|| format!("no build found matching tag `{}`", tag))
+    }
+
     pub async fn add_local_build(&mut self, path: impl AsRef<Path>) -> Result<Entry> {
         let entry = Entry::from_path(path.as_ref(), self.local.clone())
             .context("local build file as entry")?;

@@ -14,7 +14,7 @@ use std::{collections::HashMap, convert::TryFrom, fs::ReadDir, io::Error as IoEr
 pub struct PatchGraph {
     graph: Graph<Build, Patch>,
     /// helper for looking up nodes in the graph
-    builds: HashMap<Version, NodeIndex<DefaultIx>>,
+    pub(crate) builds: HashMap<Version, NodeIndex<DefaultIx>>,
     /// helper for looking up edges in the graph
     patches: HashMap<(Version, Version), EdgeIndex<DefaultIx>>,
 }
