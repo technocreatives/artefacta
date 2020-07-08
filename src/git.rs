@@ -38,7 +38,8 @@ pub fn find_tags_to_patch(current: &str, tags: &[String]) -> Result<Vec<String>>
     }
 
     fn tag_to_slice(tag: &str) -> Vec<SmolStr> {
-        tag.split(|c| c == '.' || c == '-')
+        tag.to_lowercase()
+            .split(|c| c == '.' || c == '-')
             .map(SmolStr::from)
             .collect()
     }
@@ -150,6 +151,23 @@ fn tags_to_patch_from_4() {
         "IL40.x.0".to_string(),
     ];
     let current_tag = "IL40.2.19";
+    let patch_these = find_tags_to_patch(current_tag, &tags).unwrap();
+    assert_eq!(
+        patch_these,
+        vec!["IL40.2.18".to_string(), "IL40.1.0".to_string()]
+    );
+}
+
+#[test]
+fn tags_to_patch_from_fuzzy() {
+    let tags = vec![
+        "IL40.0.1".to_string(),
+        "IL40.1.0".to_string(),
+        "IL40.2.17".to_string(),
+        "IL40.2.18".to_string(),
+        "IL40.x.0".to_string(),
+    ];
+    let current_tag = "il40-2-19";
     let patch_these = find_tags_to_patch(current_tag, &tags).unwrap();
     assert_eq!(
         patch_these,
