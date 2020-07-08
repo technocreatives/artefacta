@@ -53,6 +53,10 @@ enum Command {
         /// Version to created patches to
         #[structopt(env = "CI_COMMIT_REF_NAME")]
         current: Version,
+        /// Prefix for finding builds, used like "$prefix$tag". When setting
+        /// this, omit the prefix from the current flag.
+        #[structopt(long, default_value)]
+        prefix: String,
     },
     /// Sync all new local files to remote store
     Sync,
@@ -200,8 +204,17 @@ async fn main() -> Result<()> {
         Command::AutoPatch {
             repo_root: WorkingDir(repo_root),
             current,
+            prefix,
         } => {
-            index.get_build(current.clone()).await?;
+            let current_build =
+                Version::try_from(&format!("{}{}", prefix, current)).with_context(|| {
+                    format!(
+                        "given current version name is not valid with given prefix `{}`",
+                        prefix
+                    )
+                })?;
+            log::debug!("current version incl. given prefix is {}", current_build);
+            index.get_build(current_build.clone()).await?;
 
             let repo = git2::Repository::discover(&repo_root)
                 .with_context(|| format!("can't open repository at `{}`", repo_root.display()))
@@ -228,11 +241,12 @@ async fn main() -> Result<()> {
 
             let mut failed = false;
             for tag in &to_patch {
-                if let Err(e) = get_and_patch(&mut index, tag, current.clone()).await {
+                let tag = format!("{}{}", prefix, tag);
+                if let Err(e) = get_and_patch(&mut index, &tag, current_build.clone()).await {
                     log::error!("could not create patch from tag {}: {:?}", tag, e);
                     failed = true;
                 } else {
-                    log::info!("create patch `{}` -> `{}`", tag, current);
+                    log::info!("create patch `{}` -> `{}`", tag, current_build);
                 }
             }
             if failed {
