@@ -7,8 +7,7 @@ use std::{
 };
 use structopt::StructOpt;
 
-use artefacta::{compress, package, paths, ArtefactIndex, Storage, Version};
-pub(crate) mod git;
+use artefacta::{compress, git, package, paths, ArtefactIndex, Storage, Version};
 
 /// Manage software builds in different versions across local and remote storage
 #[derive(Debug, StructOpt)]
@@ -240,7 +239,7 @@ async fn main() -> Result<()> {
                     log::error!("could not create patch from tag {}: {:?}", tag, e);
                     failed = true;
                 } else {
-                    log::info!("create patch `{}` -> `{}`", tag, current_build);
+                    log::info!("patch `{}` -> `{}`", tag, current_build);
                 }
             }
             if failed {
@@ -254,6 +253,7 @@ async fn main() -> Result<()> {
                 to: Version,
             ) -> Result<()> {
                 let version = index.get_build_for_tag(tag)?;
+                log::debug!("source version: picked {} from tag {}", version, tag);
                 index.get_build(version.clone()).await?;
                 index.calculate_patch(version.clone(), to.clone()).await?;
                 Ok(())
