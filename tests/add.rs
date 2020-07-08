@@ -137,8 +137,8 @@ fn add_build_locally_and_calculate_a_patch() {
     let scratch = tempdir().unwrap();
     let scratch = scratch.path();
 
-    fs::write(local.join("build1.tar.zst"), b"foobar").unwrap();
-    fs::write(scratch.join("build2.tar.zst"), b"foobarbaz").unwrap();
+    crate::test_helpers::random_zstd_file(local.join("build1.tar.zst")).unwrap();
+    crate::test_helpers::random_zstd_file(scratch.join("build2.tar.zst")).unwrap();
 
     artefacta(local, remote)
         .arg("add")
@@ -169,7 +169,7 @@ fn adding_file_that_does_not_exist() {
     let scratch = tempdir().unwrap();
     let scratch = scratch.path();
 
-    fs::write(scratch.join("right-name.tar.zst"), b"foobarbaz").unwrap();
+    crate::test_helpers::random_zstd_file(scratch.join("right-name.tar.zst")).unwrap();
 
     artefacta(local, remote)
         .arg("add")

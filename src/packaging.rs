@@ -214,7 +214,7 @@ mod tests {
 
             // create some random files in random paths
             for f in &files {
-                random_file(&dir1.join(f)).expect("random_file");
+                random_zstd_file(&dir1.join(f)).expect("random_file");
             }
 
             // package this dir

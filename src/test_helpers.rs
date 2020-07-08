@@ -16,7 +16,7 @@ pub fn tempdir() -> Result<TempDir> {
     assert_fs::TempDir::new().context("can't create temp dir")
 }
 
-pub fn random_file(path: impl AsRef<Path>) -> Result<Vec<u8>> {
+pub fn random_zstd_file(path: impl AsRef<Path>) -> Result<Vec<u8>> {
     let path = path.as_ref();
     let mut rng = rand::thread_rng();
     let mut raw_content = vec![0u8; 1024];

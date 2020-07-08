@@ -34,10 +34,10 @@ mod tests {
         let dir = tempdir()?;
 
         let file1 = dir.path().join("1.tar.zst");
-        let content1 = random_file(&file1)?;
+        let content1 = random_zstd_file(&file1)?;
 
         let file2 = dir.path().join("2.tar.zst");
-        let content2 = random_file(&file2)?;
+        let content2 = random_zstd_file(&file2)?;
 
         let patch_1_2 = dir.path().join("1-2.patch.zst");
 

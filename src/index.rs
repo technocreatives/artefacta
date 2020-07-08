@@ -520,9 +520,9 @@ mod tests {
         let remote_dir = tempdir()?;
 
         // Add some builds
-        let _build1 = random_file(local_dir.path().join("build1.tar.zst"))?;
-        let _build2 = random_file(local_dir.path().join("build2.tar.zst"))?;
-        let _build3 = random_file(local_dir.path().join("build3.tar.zst"))?;
+        let _build1 = random_zstd_file(local_dir.path().join("build1.tar.zst"))?;
+        let _build2 = random_zstd_file(local_dir.path().join("build2.tar.zst"))?;
+        let _build3 = random_zstd_file(local_dir.path().join("build3.tar.zst"))?;
 
         let mut index = Index::new(local_dir.path(), remote_dir.path().try_into()?).await?;
 
