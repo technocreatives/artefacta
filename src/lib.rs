@@ -13,7 +13,7 @@ mod storage;
 pub use storage::Storage;
 
 mod compression;
-pub use compression::compress;
+pub use compression::{compress, decompress};
 
 #[cfg(test)]
 pub(crate) mod test_helpers;

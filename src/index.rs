@@ -6,7 +6,7 @@ use erreur::{bail, ensure, Context, Help, Result};
 use std::{
     convert::TryFrom,
     fs::{self, File},
-    io::{self, BufReader, Read},
+    io::{self, BufReader, Cursor, Read},
     path::Path,
 };
 
@@ -79,6 +79,11 @@ impl Index {
             Ok(bytes)
         }
 
+        fn file_size(size: u64) -> String {
+            use humansize::{file_size_opts as options, FileSize};
+            size.file_size(options::BINARY).expect("never negative")
+        }
+
         if self.get_patch(from.clone(), to.clone()).await.is_ok() {
             log::warn!(
                 "asked to calculate patch from `{:?}` to `{:?}` but it's already present",
@@ -100,25 +105,35 @@ impl Index {
             .await
             .context("get old build")?;
         let old_build = read_file(old_build).context("read old build")?;
+        let old_build = crate::decompress(Cursor::new(old_build))?;
+
         let new_build = self.get_build(to.clone()).await.context("get new build")?;
+        let new_build_size = new_build.size;
         let new_build = read_file(new_build).context("read new build")?;
+        let new_build = crate::decompress(Cursor::new(new_build))?;
 
         let path_name = Patch::new(from.clone(), to.clone());
         // TODO: Fix that arbitrary "+ zst" here and everywhere else
         let patch_path = local.join(path_name.to_string() + ".zst");
-        log::info!("write patch {:?} to `{:?}`", path_name, patch_path);
+        log::debug!("write patch {:?} to `{:?}`", path_name, patch_path);
 
-        let mut patch = crate::compress(File::create(&patch_path)?)?;
-        bidiff::simple_diff_with_params(
-            &old_build,
-            &new_build,
-            &mut patch,
-            &bidiff::DiffParams {
-                sort_partitions: 4,
-                scan_chunk_size: Some(10_000_000),
-            },
-        )?;
-        patch.finish()?;
+        let mut patch =
+            crate::compress(File::create(&patch_path).context("creating file to write patch to")?)?;
+        bidiff::simple_diff_with_params(&old_build, &new_build, &mut patch, &{
+            const MB: u64 = 1_000_000;
+            bidiff::DiffParams {
+                sort_partitions: {
+                    if new_build_size > (100 * MB) {
+                        4
+                    } else {
+                        1
+                    }
+                },
+                scan_chunk_size: Some(100 * MB as usize),
+            }
+        })
+        .context("calculating binary diff between builds")?;
+        patch.finish().context("finishing zstd file")?;
 
         let patch_size = patch_path
             .metadata()
@@ -135,6 +150,15 @@ impl Index {
             path: paths::path_as_string(patch_path)?,
             size: patch_size,
         };
+
+        log::info!(
+            "Calculated new patch from {} to {} of size {} -- that's {:.1}% of the new build's {}",
+            from,
+            to,
+            file_size(patch_size),
+            (patch_size as f64) / (new_build_size as f64) * 100_f64,
+            file_size(new_build_size),
+        );
 
         self.patch_graph
             .add_patch(&from, &to, entry, Location::Local)?;
