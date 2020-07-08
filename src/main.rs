@@ -314,7 +314,10 @@ fn setup_logging(verbose: bool) {
     if verbose {
         log.filter(None, log::LevelFilter::Info)
             .filter(Some("artefacta"), log::LevelFilter::Debug);
-    };
+    } else {
+        log.filter(None, log::LevelFilter::Warn)
+            .filter(Some("artefacta"), log::LevelFilter::Info);
+    }
 
     if let Ok(s) = std::env::var("RUST_LOG") {
         log.parse_filters(&s);
