@@ -11,8 +11,7 @@ fn install_build_from_remote_directory() {
 
     artefacta(local, remote)
         .args(&["install", "build2"])
-        .assert()
-        .success();
+        .succeeds();
 
     let current = local.join("current");
     assert!(current.exists(), "Added `current` symlink");
@@ -46,8 +45,7 @@ fn upgrade_to_a_build_already_cached() {
 
     artefacta(local, remote)
         .args(&["install", "build2"])
-        .assert()
-        .success();
+        .succeeds();
 
     let current = local.join("current");
     assert_eq!(
@@ -71,8 +69,7 @@ fn upgrade_to_new_build_without_patches() {
 
     artefacta(local, remote)
         .args(&["install", "build2"])
-        .assert()
-        .success();
+        .succeeds();
 
     let current = local.join("current");
     assert_eq!(
