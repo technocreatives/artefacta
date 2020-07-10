@@ -6,8 +6,8 @@ fn install_build_from_remote_directory() {
     let (local, remote) = init();
     let (local, remote) = (local.path(), remote.path());
 
-    fs::write(remote.join("build1.tar.zst"), b"foobar").unwrap();
-    fs::write(remote.join("build2.tar.zst"), b"foobarbaz").unwrap();
+    random_zstd_file(remote.join("build1.tar.zst")).unwrap();
+    random_zstd_file(remote.join("build2.tar.zst")).unwrap();
 
     artefacta(local, remote)
         .args(&["install", "build2"])
@@ -34,8 +34,8 @@ fn upgrade_to_a_build_already_cached() {
     let (local, remote) = init();
     let (local, remote) = (local.path(), remote.path());
 
-    fs::write(remote.join("build1.tar.zst"), b"foobar").unwrap();
-    fs::write(remote.join("build2.tar.zst"), b"foobarbaz").unwrap();
+    random_zstd_file(remote.join("build1.tar.zst")).unwrap();
+    random_zstd_file(remote.join("build2.tar.zst")).unwrap();
 
     // "cache" the builds locally
     fs::copy(remote.join("build1.tar.zst"), local.join("build1.tar.zst")).unwrap();
@@ -62,8 +62,8 @@ fn upgrade_to_new_build_without_patches() {
     let (local, remote) = init();
     let (local, remote) = (local.path(), remote.path());
 
-    fs::write(remote.join("build1.tar.zst"), b"foobar").unwrap();
-    fs::write(remote.join("build2.tar.zst"), b"foobarbaz").unwrap();
+    random_zstd_file(remote.join("build1.tar.zst")).unwrap();
+    random_zstd_file(remote.join("build2.tar.zst")).unwrap();
 
     // "install" build1
     fs::copy(remote.join("build1.tar.zst"), local.join("build1.tar.zst")).unwrap();
