@@ -183,7 +183,7 @@ impl Index {
         );
 
         let patch = Patch::new(from, to);
-        let patch_name = patch.to_string() + ".zst";
+        let patch_name = patch.file_name();
         match self.get_local_file(&patch_name).await {
             Ok(local) => return Ok(local),
             Err(e) => log::debug!("could not get patch {:?} locally: {}", patch, e),
@@ -431,7 +431,7 @@ impl Index {
         };
 
         let patch = Patch::from_path(&path)?;
-        let new_path = local.join(patch.to_string());
+        let new_path = local.join(patch.file_name());
 
         self.local
             .add_file(file, &new_path)

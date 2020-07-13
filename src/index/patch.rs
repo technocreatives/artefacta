@@ -44,6 +44,10 @@ impl Patch {
             panic!("patch `{}` has neither local not remote information!", self)
         }
     }
+
+    pub fn file_name(&self) -> String {
+        self.to_string() + ".zst"
+    }
 }
 
 impl fmt::Display for Patch {
