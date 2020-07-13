@@ -196,6 +196,12 @@ async fn main() -> Result<()> {
                 .context("could not clean up temporary directory")?;
         }
         Command::CreatePatch { from, to } => {
+            ensure!(
+                from != to,
+                "Rejecting to create patch between same versions ({}->{})",
+                from,
+                to
+            );
             index.get_build(from.clone()).await?;
             index.get_build(to.clone()).await?;
             index.calculate_patch(from.clone(), to.clone()).await?;
