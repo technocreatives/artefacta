@@ -13,10 +13,10 @@ pub fn init() -> (TempDir, TempDir) {
     (local, remote)
 }
 
-pub fn artefacta(local: &Path, remote: &Path) -> Command {
+pub fn artefacta(local: impl AsRef<Path>, remote: impl AsRef<Path>) -> Command {
     let mut cmd = Command::cargo_bin("artefacta").unwrap();
-    cmd.env("ARTEFACTA_LOCAL_STORE", local);
-    cmd.env("ARTEFACTA_REMOTE_STORE", remote);
+    cmd.env("ARTEFACTA_LOCAL_STORE", local.as_ref());
+    cmd.env("ARTEFACTA_REMOTE_STORE", remote.as_ref());
     cmd.env("RUST_LOG", "info,artefacta=trace");
     cmd.arg("--verbose");
     cmd.timeout(std::time::Duration::from_secs(10));
