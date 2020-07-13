@@ -1,5 +1,5 @@
 use crate::paths::path_as_string;
-use erreur::{bail, ensure, Context, Help, Report, Result};
+use erreur::{bail, ensure, Context, Help, Report, Result, StdResult};
 pub use std::{
     convert::{TryFrom, TryInto},
     fmt,
@@ -226,8 +226,8 @@ impl Storage {
                     .await
                     .with_context(|| format!("Couldn't get object with path `{}`", key))?;
 
-                // TODO: Check this. Checksums are in format `{md5}[-{parts}]`.
-                let _checksum = result.e_tag.context("object has no checksum")?;
+                let checksum = result.e_tag.context("object has no checksum")?;
+
                 let size = result
                     .content_length
                     .map(|s| s as u64)
@@ -259,6 +259,8 @@ impl Storage {
                     .note("S3 has bad days just like the rest of us")?;
 
                 log::info!("downloaded `{}` from S3", key);
+                s3::validate_checksum(&key, &body, &checksum)
+                    .with_context(|| format!("checksum mismatch for file `{}`", key))?;
 
                 let entry = Entry {
                     storage: self.clone(),
@@ -314,7 +316,38 @@ impl Storage {
             }
 
             InnerStorage::S3(bucket) => {
-                use rusoto_s3::{PutObjectRequest, S3Client, S3};
+                use rusoto_core::{request::BufferedHttpResponse, RusotoError};
+                use rusoto_s3::{PutObjectError, PutObjectRequest, S3Client, S3};
+
+                fn try_parse_s3_error<T>(
+                    res: StdResult<T, RusotoError<PutObjectError>>,
+                ) -> Result<T> {
+                    match res {
+                        Ok(x) => Ok(x),
+                        Err(RusotoError::Unknown(BufferedHttpResponse {
+                            status,
+                            ref body,
+                            ..
+                        })) => {
+                            let pattern = "<Code>BadDigest</Code>".as_bytes();
+                            if body
+                                .windows(pattern.len())
+                                .any(move |sub_slice| sub_slice == pattern)
+                            {
+                                res.context("S3 checksum failure")
+                                    .warning("Checksum failures can mean data is corrupted")
+                            } else {
+                                let msg = format!(
+                                    "S3 responded with status `{}` and body: `{}`",
+                                    status,
+                                    String::from_utf8_lossy(body),
+                                );
+                                res.context(msg)
+                            }
+                        }
+                        Err(e) => Err(Report::new(e)),
+                    }
+                }
 
                 let client: S3Client = bucket.try_into().context("build S3 client")?;
 
@@ -327,7 +360,7 @@ impl Storage {
                 let key = bucket.key_for(&path_as_string(target)?);
                 log::debug!("adding file as `{}`", key);
                 let checksum = md5::compute(&content);
-                client
+                let response = client
                     .put_object(PutObjectRequest {
                         bucket: bucket.bucket.to_owned(),
                         key: key.clone(),
@@ -335,7 +368,9 @@ impl Storage {
                         body: Some(content.into()),
                         ..Default::default()
                     })
-                    .await
+                    .await;
+                let response = try_parse_s3_error(response);
+                response
                     .with_context(|| format!("Failed to upload object `{}` to S3", key))
                     .note("S3 has bad days just like the rest of us")?;
             }
