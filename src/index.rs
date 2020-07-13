@@ -167,13 +167,9 @@ impl Index {
     }
 
     async fn get_local_file(&self, path: &str) -> Result<Entry> {
-        let newly_local_build = self
-            .local
-            .get_file(&path)
-            .await
-            .context("fetch newly added local build");
+        let file = self.local.get_file(&path).await.context("fetch local file");
 
-        match newly_local_build {
+        match file {
             Ok(FileEntry::InFilesystem(local)) => Ok(local),
             Ok(_) => unreachable!("local storage always returns local files"),
             Err(e) => Err(e).context("get local build"),
@@ -187,10 +183,10 @@ impl Index {
         );
 
         let patch = Patch::new(from, to);
-        let patch_name = patch.to_string() + ".zst";
+        let patch_name = patch.file_name();
         match self.get_local_file(&patch_name).await {
             Ok(local) => return Ok(local),
-            Err(e) => log::debug!("could not get local patch {:?}: {}", patch, e),
+            Err(e) => log::debug!("could not get patch {:?} locally: {}", patch, e),
         }
 
         let remote_entry = self
@@ -202,6 +198,7 @@ impl Index {
         self.add_patch(&remote_entry)
             .await
             .context("copy remote entry to local storage")?;
+        log::debug!("fetched patch `{}` from remote ({:?})", patch, remote_entry);
 
         self.get_local_file(&patch_name)
             .await
@@ -434,12 +431,13 @@ impl Index {
         };
 
         let patch = Patch::from_path(&path)?;
-        let new_path = local.join(patch.to_string());
+        let new_path = local.join(patch.file_name());
 
         self.local
             .add_file(file, &new_path)
             .await
             .context("write patch file to local storage")?;
+        log::trace!("added file `{}` to local storage", new_path.display());
 
         let entry = Entry::from_path(&new_path, self.local.clone())
             .context("create entry for new build file")?;
@@ -447,6 +445,7 @@ impl Index {
         self.patch_graph
             .add_patch(&patch.from, &patch.to, entry, Location::Local)
             .with_context(|| format!("add patch `{}`", path.display()))?;
+        log::debug!("added patch `{}`: {:?}", path.display(), patch);
         Ok(())
     }
 

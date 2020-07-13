@@ -16,16 +16,29 @@ pub fn tempdir() -> Result<TempDir> {
     assert_fs::TempDir::new().context("can't create temp dir")
 }
 
+pub fn random_bytes(num: usize) -> Result<Vec<u8>> {
+    let mut rng = rand::thread_rng();
+    let mut raw_content = vec![0u8; num];
+    rng.try_fill(&mut raw_content[..])?;
+    Ok(raw_content)
+}
+
 pub fn random_zstd_file(path: impl AsRef<Path>) -> Result<Vec<u8>> {
     let path = path.as_ref();
-    let mut rng = rand::thread_rng();
-    let mut raw_content = vec![0u8; 1024];
-    rng.try_fill(&mut raw_content[..])?;
-    let content = zstd::stream::encode_all(Cursor::new(&raw_content[..]), 3)?;
+    let raw_content = random_bytes(1024)?;
+    let content = zstd::stream::encode_all(Cursor::new(&raw_content[..]), 1)?;
 
     fs::create_dir_all(path.parent().context("parent dir")?).context("mkdir")?;
     fs::write(path, content).context("write file")?;
     Ok(raw_content)
+}
+
+pub fn zstd_file(path: impl AsRef<Path>, content: &[u8]) -> Result<()> {
+    let path = path.as_ref();
+    let content = zstd::stream::encode_all(Cursor::new(&content[..]), 1)?;
+    fs::create_dir_all(path.parent().context("parent dir")?).context("mkdir")?;
+    fs::write(path, content).context("write file")?;
+    Ok(())
 }
 
 pub fn logger() {

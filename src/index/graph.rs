@@ -102,10 +102,15 @@ impl PatchGraph {
         use std::collections::hash_map::Entry;
 
         let patch = match self.patches.entry((from.clone(), to.clone())) {
-            Entry::Occupied(e) => self
-                .graph
-                .edge_weight_mut(*e.get())
-                .context("`patches` points to non-existing EdgeIndex")?,
+            Entry::Occupied(e) => {
+                log::trace!(
+                    "graph already has patch {:?}, updating weight only",
+                    (from.clone(), to.clone())
+                );
+                self.graph
+                    .edge_weight_mut(*e.get())
+                    .context("`patches` points to non-existing EdgeIndex")?
+            }
             Entry::Vacant(e) => {
                 let patch = Patch::new(from.clone(), to.clone());
                 let prev_build = *self
@@ -120,6 +125,7 @@ impl PatchGraph {
                     .note("do your file names follow the pattern artefacta expects?")?;
                 let idx = self.graph.add_edge(prev_build, next_build, patch);
                 e.insert(idx);
+                log::trace!("added new edge/patch {:?}", (from.clone(), to.clone()));
                 self.graph
                     .edge_weight_mut(idx)
                     .context("`patches` points to existing EdgeIndex")?
@@ -134,6 +140,7 @@ impl PatchGraph {
                 patch.set_remote(entry);
             }
         }
+        log::trace!("patch updated to be {:?}", patch);
 
         Ok(())
     }
