@@ -1,6 +1,7 @@
 use crate::{
     apply_patch, paths,
     storage::{Entry, File as FileEntry, Storage},
+    PartialFile,
 };
 use erreur::{bail, ensure, Context, Help, Result};
 use std::{
@@ -117,8 +118,9 @@ impl Index {
         let patch_path = local.join(path_name.to_string() + ".zst");
         log::debug!("write patch {:?} to `{:?}`", path_name, patch_path);
 
-        let mut patch =
-            crate::compress(File::create(&patch_path).context("creating file to write patch to")?)?;
+        let mut patch_file =
+            PartialFile::create(&patch_path).context("creating file to write patch to")?;
+        let mut patch = crate::compress(&mut patch_file)?;
         bidiff::simple_diff_with_params(&old_build, &new_build, &mut patch, &{
             const MB: u64 = 1_000_000;
             bidiff::DiffParams {
@@ -134,6 +136,9 @@ impl Index {
         })
         .context("calculating binary diff between builds")?;
         patch.finish().context("finishing zstd file")?;
+        patch_file
+            .finish()
+            .context("finishing writing patch file")?;
 
         let patch_size = patch_path
             .metadata()
@@ -270,14 +275,16 @@ impl Index {
         let build_temp_path = build_root.join(&build_temp_name);
         let build_real_path = build_root.join(&build_real_name);
 
-        let build_file = File::create(&build_temp_path)
+        let mut build_file = PartialFile::create(&build_temp_path)
             .with_context(|| format!("create new build file `{}`", build_temp_path.display()))?;
-        let mut build_file = crate::compress(build_file).context("zstd writer for new build")?;
+        let mut build_writer =
+            crate::compress(&mut build_file).context("zstd writer for new build")?;
         let mut patch_data =
             apply_patch(&source_build.path, &patch_file.path).context("apply patch")?;
 
-        io::copy(&mut patch_data, &mut build_file).context("write patch")?;
-        build_file.finish().context("finish zstd writer")?;
+        io::copy(&mut patch_data, &mut build_writer).context("write patch")?;
+        build_writer.finish().context("finish zstd writer")?;
+        build_file.finish().context("finish build file")?;
 
         fs::rename(&build_temp_path, &build_real_path).context("rename tmp build file")?;
 

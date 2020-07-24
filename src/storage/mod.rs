@@ -1,4 +1,4 @@
-use crate::paths::path_as_string;
+use crate::{paths::path_as_string, PartialFile};
 use erreur::{bail, ensure, Context, Help, Report, Result, StdResult};
 pub use std::{
     convert::{TryFrom, TryInto},
@@ -307,10 +307,12 @@ impl Storage {
                         })?;
                     }
                     File::Inline(_, content) => {
-                        let new = fs::File::create(&new_path)
+                        let mut new_file = PartialFile::create(&new_path)
                             .with_context(|| format!("create `{}`", new_path.display()))?;
-                        let mut new = BufWriter::new(new);
-                        new.write_all(&content).context("write content of file")?;
+                        new_file
+                            .write_all(&content)
+                            .context("write content of file")?;
+                        new_file.finish().context("finish writing to new file")?;
                     }
                 };
             }

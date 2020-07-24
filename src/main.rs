@@ -7,7 +7,7 @@ use std::{
 };
 use structopt::StructOpt;
 
-use artefacta::{compress, git, package, paths, ArtefactIndex, Storage, Version};
+use artefacta::{compress, git, package, paths, ArtefactIndex, PartialFile, Storage, Version};
 
 /// Manage software builds in different versions across local and remote storage
 #[derive(Debug, StructOpt)]
@@ -171,18 +171,18 @@ async fn main() -> Result<()> {
                 archive_path.display()
             );
 
-            let archive = fs::File::create(&archive_path)
+            let mut archive_file = PartialFile::create(&archive_path)
                 .with_context(|| format!("cannot create file `{}`", archive_path.display()))?;
-            let mut archive = compress(archive)
+            let mut archive = compress(&mut archive_file)
                 .with_context(|| format!("cannot create zstd file `{}`", archive_path.display()))?;
             package(&build_path, &mut archive)
                 .with_context(|| format!("package archive `{}`", archive_path.display()))?;
             archive
                 .finish()
-                .with_context(|| format!("write zstd archive `{}`", archive_path.display()))
-                .note(
-                    "archive file was created but not written successfully -- clean it up yourself",
-                )?;
+                .with_context(|| format!("write zstd archive `{}`", archive_path.display()))?;
+            archive_file
+                .finish()
+                .context("faild to finish moving archive file into place")?;
 
             let add = AddBuild {
                 path: archive_path,
