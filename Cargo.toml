@@ -19,17 +19,17 @@ petgraph = "0.5.1"
 smol_str = "0.1.15"
 
 bidiff = "0.1.0"
-bipatch = "0.1.0"
-zstd = "0.5.1"
+bipatch = "0.1.1"
+zstd = "0.5.3"
 
 tar = "0.4.26"
 walkdir = "2.3.1"
 tempfile = "3.1.0"
 
 url = "2.1.1"
-rusoto_core = { version = "0.44.0", features = ["rustls"], default-features = false }
-rusoto_s3 = { version = "0.44.0", features = ["rustls"], default-features = false }
-base64 = "0.12.0"
+rusoto_core = { version = "0.45.0", features = ["rustls"], default-features = false }
+rusoto_s3 = { version = "0.45.0", features = ["rustls"], default-features = false }
+base64 = "0.12.3"
 md5 = "0.7.0"
 async-read-progress = "0.1.0"
 
