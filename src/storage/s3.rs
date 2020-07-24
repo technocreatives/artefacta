@@ -80,7 +80,7 @@ impl<'a> TryFrom<&'a Bucket> for S3Client {
 }
 
 pub fn validate_checksum(key: &str, body: &[u8], received: &str) -> Result<()> {
-    if received.contains("-") {
+    if received.contains('-') {
         log::warn!(
             "S3 checksum for file `{}` is in multipart format, which artefacta doesn't support yet",
             key

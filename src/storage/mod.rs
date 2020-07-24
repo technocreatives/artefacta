@@ -329,7 +329,7 @@ impl Storage {
                             ref body,
                             ..
                         })) => {
-                            let pattern = "<Code>BadDigest</Code>".as_bytes();
+                            let pattern = b"<Code>BadDigest</Code>";
                             if body
                                 .windows(pattern.len())
                                 .any(move |sub_slice| sub_slice == pattern)
