@@ -15,6 +15,9 @@ pub use storage::Storage;
 mod compression;
 pub use compression::{compress, decompress};
 
+mod partial_file;
+pub use partial_file::PartialFile;
+
 pub mod git;
 
 #[cfg(test)]
