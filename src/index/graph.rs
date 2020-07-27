@@ -31,8 +31,14 @@ impl PatchGraph {
     }
 
     pub fn update_from_file_list(&mut self, list: &[Entry], location: Location) -> Result<()> {
-        let (patches, builds): (Vec<_>, Vec<_>) =
-            list.iter().partition(|entry| entry.path.contains(".patch"));
+        let builds: Vec<_> = list
+            .iter()
+            .filter(|entry| entry.path.ends_with(".tar.zst"))
+            .collect();
+        let patches: Vec<_> = list
+            .iter()
+            .filter(|entry| entry.path.ends_with(".patch.zst"))
+            .collect();
 
         log::trace!("Builds: {:?}", builds);
         for entry in builds {
@@ -50,8 +56,15 @@ impl PatchGraph {
                 continue;
             }
             let Patch { from, to, .. } = Patch::from_path(&entry.path)?;
-            self.add_patch(&from, &to, entry.clone(), location)
-                .with_context(|| format!("add patch `{}`", entry.path))?;
+            if let Err(e) = self.add_patch(&from, &to, entry.clone(), location) {
+                log::error!("failed to add patch `{}`. continuing.", entry.path);
+                if log::log_enabled!(log::Level::Debug) {
+                    format!("{:?}", e)
+                        .lines()
+                        .filter(|l| !l.is_empty())
+                        .for_each(|l| log::debug!("{}", l));
+                }
+            }
         }
 
         Ok(())
