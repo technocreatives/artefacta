@@ -6,7 +6,7 @@ use crate::{
 use erreur::{bail, ensure, Context, Help, Result};
 use std::{
     convert::TryFrom,
-    fs::{self, File},
+    fs::File,
     io::{self, BufReader, Cursor, Read},
     path::Path,
 };
@@ -268,15 +268,12 @@ impl Index {
             .await
             .context("fetch source build")?;
 
-        let build_temp_name = format!("tmp.{}.tar.zst", patch.to);
-        let build_real_name = format!("{}.tar.zst", patch.to);
-
+        let build_name = format!("{}.tar.zst", patch.to);
         let build_root = self.local.local_path().context("local storage not local")?;
-        let build_temp_path = build_root.join(&build_temp_name);
-        let build_real_path = build_root.join(&build_real_name);
+        let build_path = build_root.join(&build_name);
 
-        let mut build_file = PartialFile::create(&build_temp_path)
-            .with_context(|| format!("create new build file `{}`", build_temp_path.display()))?;
+        let mut build_file = PartialFile::create(&build_path)
+            .with_context(|| format!("create new build file `{}`", build_path.display()))?;
         let mut build_writer =
             crate::compress(&mut build_file).context("zstd writer for new build")?;
         let mut patch_data =
@@ -286,9 +283,7 @@ impl Index {
         build_writer.finish().context("finish zstd writer")?;
         build_file.finish().context("finish build file")?;
 
-        fs::rename(&build_temp_path, &build_real_path).context("rename tmp build file")?;
-
-        let entry = Entry::from_path(&build_real_path, self.local.clone())
+        let entry = Entry::from_path(&build_path, self.local.clone())
             .context("create entry for new build file")?;
         log::debug!(
             "created new build `{:?}` from patch `{:?}`",
@@ -301,7 +296,7 @@ impl Index {
             .with_context(|| {
                 format!(
                     "add newly created build `{}` to index",
-                    build_real_path.display()
+                    build_path.display()
                 )
             })?;
         Ok(entry)
