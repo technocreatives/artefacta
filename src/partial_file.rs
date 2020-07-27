@@ -111,6 +111,7 @@ fn generate_partial_file_name(path: &Path) -> Result<PathBuf> {
         let mut res = OsString::from("._");
         res.push(&temp_prefix);
         res.push(target_file_name);
+        res.push(".part");
         res
     };
     Ok(path.with_file_name(new_file_name))
