@@ -31,8 +31,14 @@ impl PatchGraph {
     }
 
     pub fn update_from_file_list(&mut self, list: &[Entry], location: Location) -> Result<()> {
-        let (patches, builds): (Vec<_>, Vec<_>) =
-            list.iter().partition(|entry| entry.path.contains(".patch"));
+        let builds: Vec<_> = list
+            .iter()
+            .filter(|entry| entry.path.ends_with(".tar.zst"))
+            .collect();
+        let patches: Vec<_> = list
+            .iter()
+            .filter(|entry| entry.path.ends_with(".patch.zst"))
+            .collect();
 
         log::trace!("Builds: {:?}", builds);
         for entry in builds {
