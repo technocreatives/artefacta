@@ -3,7 +3,7 @@ use crate::{
     storage::{Entry, File as FileEntry, Storage},
     PartialFile,
 };
-use erreur::{bail, ensure, Context, Help, Result};
+use erreur::{bail, ensure, Context, Help, LogAndDiscardResult, Result};
 use std::{
     convert::TryFrom,
     fs::File,
@@ -240,14 +240,28 @@ impl Index {
                     needed_patches
                 );
 
-                for patch in needed_patches {
-                    self.add_build_from_patch(&patch)
-                        .await
-                        .with_context(|| format!("add build from patch `{:?}`", patch))?;
+                async fn apply_patches(index: &mut Index, needed_patches: &[Patch]) -> Result<()> {
+                    for patch in needed_patches {
+                        index
+                            .add_build_from_patch(&patch)
+                            .await
+                            .with_context(|| format!("add build from patch `{:?}`", patch))?;
+                    }
+                    Ok(())
                 }
 
-                let local_build = self.get_build(to).await.context("fetch just added build")?;
+                match apply_patches(self, &needed_patches).await {
+                    Ok(_) => log::debug!("successfully applied all patches to get to final build."),
+                    e => {
+                        log::warn!("failed to get build using patches, will use direct build.");
+                        e.note("one of the patches might be corrupt.")
+                            .log_and_discard();
+                    }
+                }
+
+                let local_build = self.get_build(to).await.context("fetch target build")?;
                 log::debug!("arrived at final build: {:?}", local_build);
+
                 Ok(local_build)
             }
             UpgradePath::InstallBuild(build) => {

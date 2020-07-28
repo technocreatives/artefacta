@@ -99,3 +99,67 @@ fn size_is_different_between_remote_and_local() {
             .unwrap(),
         );
 }
+
+#[test]
+fn upgrade_to_new_build_with_patches() {
+    let (machine1, remote) = init();
+    let (machine1, remote) = (machine1.path(), remote.path());
+    let (machine2, _) = init();
+    let machine2 = machine2.path();
+
+    let mut content = random_bytes(1024).unwrap();
+    zstd_file(remote.join("build1.tar.zst"), &content).unwrap();
+    content.extend(random_bytes(32).unwrap());
+    zstd_file(remote.join("build2.tar.zst"), &content).unwrap();
+
+    artefacta(machine1, remote)
+        .args(&["create-patch", "build1", "build2"])
+        .succeeds();
+    artefacta(machine1, remote).args(&["sync"]).succeeds();
+
+    artefacta(machine2, remote)
+        .args(&["install", "build1"])
+        .succeeds();
+    artefacta(machine2, remote)
+        .args(&["install", "build2"])
+        .succeeds();
+    assert!(machine2.join("build1-build2.patch.zst").exists());
+
+    let current = machine2.join("current");
+    assert_eq!(
+        machine2.join("build2.tar.zst").canonicalize().unwrap(),
+        fs::read_link(&current).unwrap(),
+        "symlink points to new build"
+    );
+}
+
+#[test]
+fn upgrade_to_new_build_despite_broken_patches() {
+    let (local, remote) = init();
+    let (local, remote) = (local.path(), remote.path());
+
+    let mut content = random_bytes(1024).unwrap();
+    zstd_file(remote.join("build1.tar.zst"), &content).unwrap();
+    content.extend(random_bytes(32).unwrap());
+    zstd_file(remote.join("build2.tar.zst"), &content).unwrap();
+    artefacta(local, remote)
+        .args(&["install", "build1"])
+        .succeeds();
+
+    // this file is not a valid patch!
+    zstd_file(
+        remote.join("build1-build2.patch.zst"),
+        &random_bytes(144).unwrap(),
+    )
+    .unwrap();
+
+    artefacta(local, remote)
+        .args(&["install", "build2"])
+        .succeeds();
+
+    assert_eq!(
+        local.join("build2.tar.zst").canonicalize().unwrap(),
+        fs::read_link(local.join("current")).unwrap(),
+        "symlink points to new build"
+    );
+}
