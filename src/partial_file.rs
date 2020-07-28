@@ -52,6 +52,7 @@ impl PartialFile {
                 self.target_path.display()
             )
         })?;
+        self.finished = true;
         File::open(&self.target_path)
             .with_context(|| format!("cannot open finished file `{}`", self.target_path.display()))
     }
@@ -115,4 +116,49 @@ fn generate_partial_file_name(path: &Path) -> Result<PathBuf> {
         res
     };
     Ok(path.with_file_name(new_file_name))
+}
+
+#[test]
+fn rename_file_on_finish() {
+    use crate::test_helpers::*;
+
+    let tmp = tempdir().unwrap();
+    let tmp = tmp.path();
+    let testfile = tmp.join("test1");
+
+    let mut x = PartialFile::create(&testfile).unwrap();
+    let temp_path = x.partial_path.clone();
+
+    assert!(!testfile.exists(), "target file shouldnt exists already");
+    assert!(temp_path.exists(), "temp file should exists");
+
+    write!(&mut x, "lorem ipsum dolor sit test").unwrap();
+    x.finish().unwrap();
+    assert!(!temp_path.exists(), "temp file should no longer exists");
+    assert!(
+        testfile.exists(),
+        "target file should exist when tempfile is finished"
+    );
+}
+
+#[test]
+fn remove_temp_file_on_drop() {
+    use crate::test_helpers::*;
+
+    let tmp = tempdir().unwrap();
+    let tmp = tmp.path();
+    let testfile = tmp.join("test1");
+
+    let mut x = PartialFile::create(&testfile).unwrap();
+    let temp_path = x.partial_path.clone();
+
+    assert!(!testfile.exists(), "target file should not exist");
+    assert!(temp_path.exists(), "temp file should exists");
+
+    write!(&mut x, "lorem ipsum dolor sit test").unwrap();
+
+    // not calling finish!
+    std::mem::drop(x);
+    assert!(!temp_path.exists(), "temp file should no longer exists");
+    assert!(!testfile.exists(), "target file should not exists");
 }
