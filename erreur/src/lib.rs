@@ -69,3 +69,18 @@ where
         self.wrap_err_with(msg)
     }
 }
+
+pub trait LogAndDiscardResult {
+    fn log_and_discard(self);
+}
+
+impl<T: Debug, E: Debug> LogAndDiscardResult for StdResult<T, E> {
+    fn log_and_discard(self) {
+        if log::log_enabled!(log::Level::Debug) {
+            format!("{:?}", self)
+                .lines()
+                .filter(|l| !l.is_empty())
+                .for_each(|l| log::debug!("{}", l));
+        }
+    }
+}

@@ -1,6 +1,6 @@
 use super::{Build, Patch, Version};
 use crate::{paths, storage::Entry};
-use erreur::{Context, Help, Result, StdResult};
+use erreur::{Context, Help, LogAndDiscardResult, Result, StdResult};
 
 use petgraph::graph::{DefaultIx, EdgeIndex, Graph, NodeIndex};
 use std::{collections::HashMap, convert::TryFrom, fs::ReadDir, io::Error as IoError};
@@ -56,13 +56,11 @@ impl PatchGraph {
                 continue;
             }
             let Patch { from, to, .. } = Patch::from_path(&entry.path)?;
-            if let Err(e) = self.add_patch(&from, &to, entry.clone(), location) {
-                log::error!("failed to add patch `{}`. continuing.", entry.path);
-                if log::log_enabled!(log::Level::Debug) {
-                    format!("{:?}", e)
-                        .lines()
-                        .filter(|l| !l.is_empty())
-                        .for_each(|l| log::debug!("{}", l));
+            match self.add_patch(&from, &to, entry.clone(), location) {
+                Ok(_) => log::debug!("added patch `{}`", entry.path),
+                e => {
+                    log::error!("failed to add patch `{}`. continuing.", entry.path);
+                    e.log_and_discard();
                 }
             }
         }
