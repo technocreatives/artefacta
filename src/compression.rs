@@ -16,10 +16,10 @@ pub fn decompress<R: Read>(r: R) -> Result<Vec<u8>> {
 const LEVEL_VAR: &str = "ARTEFACTA_COMPRESSION_LEVEL";
 
 #[cfg(test)]
-const DEFAULT_LEVEL: i32 = 14;
+const DEFAULT_LEVEL: i32 = 1;
 
 #[cfg(not(test))]
-const DEFAULT_LEVEL: i32 = 1;
+const DEFAULT_LEVEL: i32 = 14;
 
 fn compression_level() -> i32 {
     if let Ok(x) = env::var(LEVEL_VAR) {
