@@ -19,6 +19,8 @@ mod graph;
 pub use graph::{Location, PatchGraph, UpgradePath};
 mod version;
 pub use version::Version;
+mod checksum;
+pub use checksum::Checksum;
 
 /// Artefact index
 ///

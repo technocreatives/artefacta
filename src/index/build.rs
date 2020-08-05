@@ -1,4 +1,4 @@
-use crate::{index::Version, storage::Entry};
+use crate::{index::{Version, Checksum}, storage::Entry};
 
 /// Artefact with version
 #[derive(Debug, Clone, Eq, PartialOrd, Ord)]
@@ -6,6 +6,7 @@ pub struct Build {
     pub(crate) version: Version,
     pub(crate) local: Option<Entry>,
     pub(crate) remote: Option<Entry>,
+    pub(crate) checksum: Option<Checksum>,
 }
 
 /// Builder
@@ -18,6 +19,7 @@ impl Build {
             version,
             local: None,
             remote: None,
+            checksum: None,
         }
     }
 
@@ -27,6 +29,10 @@ impl Build {
 
     pub fn set_remote(&mut self, remote: Entry) {
         self.remote = Some(remote);
+    }
+
+    pub fn set_checksum(&mut self, checksum: Checksum) {
+        self.checksum = Some(checksum);
     }
 }
 

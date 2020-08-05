@@ -66,6 +66,7 @@ dependencies = [
  "erreur",
  "futures",
  "git2",
+ "hex_fmt",
  "humansize",
  "log",
  "md5",
@@ -76,6 +77,7 @@ dependencies = [
  "rand",
  "rusoto_core",
  "rusoto_s3",
+ "sha2",
  "smol_str",
  "structopt",
  "tar",
@@ -795,6 +797,12 @@ name = "hex"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "644f9158b2f133fd50f5fb3242878846d9eb792e445c893805ff0e3824006e35"
+
+[[package]]
+name = "hex_fmt"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b07f60793ff0a4d9cef0f18e63b5357e06209987153a64648c972c1e5aff336f"
 
 [[package]]
 name = "hmac"
