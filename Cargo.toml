@@ -38,6 +38,7 @@ futures = "0.3.4"
 
 git2 = { version = "0.13.6", default-features = false }
 chrono = "0.4.11"
+human-sort = "0.2.2"
 
 [dev-dependencies]
 rand = "0.7.3"
