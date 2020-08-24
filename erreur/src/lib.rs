@@ -76,7 +76,7 @@ pub trait LogAndDiscardResult {
 
 impl<T: Debug, E: Debug> LogAndDiscardResult for StdResult<T, E> {
     fn log_and_discard(self) {
-        if log::log_enabled!(log::Level::Debug) {
+        if log::log_enabled!(log::Level::Debug) && self.is_err() {
             format!("{:?}", self)
                 .lines()
                 .filter(|l| !l.is_empty())
