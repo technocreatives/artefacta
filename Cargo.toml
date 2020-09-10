@@ -18,8 +18,8 @@ pretty_env_logger = "0.4.0"
 petgraph = "0.5.1"
 smol_str = "0.1.15"
 
-bidiff = "0.1.0"
-bipatch = "0.1.1"
+bidiff = "1.0"
+bipatch = "1.0"
 zstd = "0.5.3"
 
 tar = "0.4.26"

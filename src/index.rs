@@ -3,7 +3,7 @@ use crate::{
     storage::{Entry, File as FileEntry, Storage},
     PartialFile,
 };
-use erreur::{bail, ensure, Context, Help, LogAndDiscardResult, Result};
+use erreur::{bail, ensure, Context, Help, LogAndDiscardResult, Report, Result};
 use std::{
     convert::TryFrom,
     fs::File,
@@ -123,16 +123,19 @@ impl Index {
         let mut patch = crate::compress(&mut patch_file)?;
         bidiff::simple_diff_with_params(&old_build, &new_build, &mut patch, &{
             const MB: u64 = 1_000_000;
-            bidiff::DiffParams {
-                sort_partitions: {
+            bidiff::DiffParams::new(
+                {
                     if new_build_size > (100 * MB) {
                         4
                     } else {
                         1
                     }
                 },
-                scan_chunk_size: Some(100 * MB as usize),
-            }
+                Some(100 * MB as usize),
+            )
+            .map_err(|e| Report::msg(e.to_string()))
+            .context("valid diff params")
+            .note("this is a programming error, please open an issue")?
         })
         .context("calculating binary diff between builds")?;
         patch.finish().context("finishing zstd file")?;
