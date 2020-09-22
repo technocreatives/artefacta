@@ -34,10 +34,12 @@ impl PatchGraph {
         let builds: Vec<_> = list
             .iter()
             .filter(|entry| entry.path.ends_with(".tar.zst"))
+            .filter(|entry| entry.size > 0)
             .collect();
         let patches: Vec<_> = list
             .iter()
             .filter(|entry| entry.path.ends_with(".patch.zst"))
+            .filter(|entry| entry.size > 0)
             .collect();
 
         log::trace!("Builds: {:?}", builds);
