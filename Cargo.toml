@@ -26,15 +26,15 @@ tar = "0.4.26"
 tempfile = "3.1.0"
 walkdir = "2.3.1"
 
-async-read-progress = "0.1.0"
+async-read-progress = "0.2.0"
 base64 = "0.13.0"
 md5 = "0.7.0"
-rusoto_core = {version = "0.45.0", features = ["rustls"], default-features = false}
-rusoto_s3 = {version = "0.45.0", features = ["rustls"], default-features = false}
+rusoto_core = {version = "0.46.0", features = ["rustls"], default-features = false}
+rusoto_s3 = {version = "0.46.0", features = ["rustls"], default-features = false}
 url = "2.1.1"
 
 futures = "0.3.4"
-tokio = {version = "0.2", features = ["rt-threaded", "io-util"]}
+tokio = {version = "1.6"}
 
 chrono = "0.4.11"
 git2 = {version = "0.13.6", default-features = false}
