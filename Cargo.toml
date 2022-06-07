@@ -22,7 +22,7 @@ bidiff = "1.0"
 bipatch = "1.0"
 zstd = "0.5.3"
 
-tar = "0.4.26"
+tar = "0.4.36"
 walkdir = "2.3.1"
 tempfile = "3.1.0"
 
