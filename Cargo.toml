@@ -20,7 +20,7 @@ smol_str = "0.1.15"
 
 bidiff = "1.0"
 bipatch = "1.0"
-zstd = "0.5.3"
+zstd = "0.11.2"
 
 tar = ">=0.4.36"
 walkdir = "2.3.1"
