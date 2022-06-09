@@ -310,7 +310,7 @@ impl Storage {
                         let mut new_file = PartialFile::create(&new_path)
                             .with_context(|| format!("create `{}`", new_path.display()))?;
                         new_file
-                            .write_all(&content)
+                            .write_all(content)
                             .context("write content of file")?;
                         new_file.finish().context("finish writing to new file")?;
                     }

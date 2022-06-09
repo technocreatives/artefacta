@@ -22,7 +22,7 @@ impl Bucket {
             .trim_start_matches('/')
             .trim_end_matches('/')
             .to_owned();
-        root.push_str("/");
+        root.push('/');
         root.push_str(path);
         root
     }

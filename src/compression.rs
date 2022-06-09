@@ -5,7 +5,7 @@ use std::{
 };
 use zstd::stream::{decode_all, write::Encoder as ZstdEncoder};
 
-pub fn compress<W: Write>(w: W) -> Result<ZstdEncoder<W>> {
+pub fn compress<W: Write>(w: W) -> Result<ZstdEncoder<'static, W>> {
     ZstdEncoder::new(w, compression_level()).context("Can't instantiate ZSTD encoder")
 }
 
