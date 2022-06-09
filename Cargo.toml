@@ -22,7 +22,7 @@ bidiff = "1.0"
 bipatch = "1.0"
 zstd = "0.5.3"
 
-tar = "0.4.26"
+tar = ">=0.4.36"
 walkdir = "2.3.1"
 tempfile = "3.1.0"
 
@@ -33,7 +33,7 @@ base64 = "0.12.3"
 md5 = "0.7.0"
 async-read-progress = "0.1.0"
 
-tokio = { version = "0.2", features = ["rt-threaded", "io-util"] }
+tokio = { version = ">=1.8.4, <1.9.0", features = ["rt-multi-thread", "io-util"] }
 futures = "0.3.4"
 
 git2 = { version = "0.13.6", default-features = false }
