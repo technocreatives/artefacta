@@ -175,7 +175,7 @@ impl Index {
     }
 
     async fn get_local_file(&self, path: &str) -> Result<Entry> {
-        let file = self.local.get_file(&path).await.context("fetch local file");
+        let file = self.local.get_file(path).await.context("fetch local file");
 
         match file {
             Ok(FileEntry::InFilesystem(local)) => Ok(local),
@@ -247,7 +247,7 @@ impl Index {
                 async fn apply_patches(index: &mut Index, needed_patches: &[Patch]) -> Result<()> {
                     for patch in needed_patches {
                         index
-                            .add_build_from_patch(&patch)
+                            .add_build_from_patch(patch)
                             .await
                             .with_context(|| format!("add build from patch `{:?}`", patch))?;
                     }

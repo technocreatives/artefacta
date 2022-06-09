@@ -35,7 +35,7 @@ pub fn random_zstd_file(path: impl AsRef<Path>) -> Result<Vec<u8>> {
 
 pub fn zstd_file(path: impl AsRef<Path>, content: &[u8]) -> Result<()> {
     let path = path.as_ref();
-    let content = zstd::stream::encode_all(Cursor::new(&content[..]), 1)?;
+    let content = zstd::stream::encode_all(Cursor::new(content), 1)?;
     fs::create_dir_all(path.parent().context("parent dir")?).context("mkdir")?;
     fs::write(path, content).context("write file")?;
     Ok(())

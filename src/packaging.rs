@@ -111,7 +111,7 @@ mod tests {
         binary.write_str("#! /bin/sh\necho 'Done!'").unwrap();
 
         let mut output = compress(fs::File::create(&archive.path()).unwrap()).unwrap();
-        package(&binary.path(), &mut output).expect("package");
+        package(binary.path(), &mut output).expect("package");
         output.finish().unwrap();
 
         archive.assert(predicate::path::is_file());
