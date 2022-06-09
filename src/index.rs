@@ -188,6 +188,7 @@ impl Index {
         ensure!(
             self.patch_graph.has_patch(from.clone(), to.clone()),
             "patch `{:?}` unknown",
+            (from, to)
         );
 
         let patch = Patch::new(from, to);
