@@ -34,7 +34,7 @@ rusoto_core = { version = "0.48.0", features = [
 rusoto_s3 = { version = "0.48.0", features = [
     "rustls",
 ], default-features = false }
-base64 = "0.12.3"
+base64 = "0.13.0"
 md5 = "0.7.0"
 async-read-progress = "0.2.0"
 
@@ -46,11 +46,11 @@ chrono = "0.4.11"
 human-sort = "0.2.2"
 
 [dev-dependencies]
-rand = "0.7.3"
-proptest = "0.10.0"
-assert_cmd = "1.0.1"
+rand = "0.8.5"
+proptest = "1.0.0"
+assert_cmd = "2.0.1"
 assert_fs = "1.0.0"
-predicates = "1.0.4"
+predicates = "2.1.1"
 
 [workspace]
 members = [".", "erreur"]
