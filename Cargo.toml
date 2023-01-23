@@ -41,7 +41,7 @@ async-read-progress = "0.2.0"
 tokio = { version = "1.20.3", features = ["rt-multi-thread", "io-util"] }
 futures = "0.3.4"
 
-git2 = { version = "0.13.6", default-features = false }
+git2 = { version = "0.16.1", default-features = false }
 chrono = "0.4.11"
 human-sort = "0.2.2"
 
