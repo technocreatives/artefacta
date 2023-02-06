@@ -38,7 +38,7 @@ base64 = "0.13.0"
 md5 = "0.7.0"
 async-read-progress = "0.2.0"
 
-tokio = { version = "1.20.3", features = ["rt-multi-thread", "io-util"] }
+tokio = { version = "1.20.4", features = ["rt-multi-thread", "io-util"] }
 futures = "0.3.4"
 
 git2 = { version = "0.16.1", default-features = false }
